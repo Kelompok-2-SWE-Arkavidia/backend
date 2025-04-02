@@ -48,7 +48,7 @@ Clean Architecture is a software design philosophy that emphasizes the separatio
    ```
 2. Set the environment variables in a `.env` file:
    ```shell
-   cp .env.example .env
+   cp config.yaml.example config.yaml
    ```
 3. Install the dependencies:
    ```shell
@@ -78,7 +78,10 @@ Clean Architecture is a software design philosophy that emphasizes the separatio
     ```shell
     air -c .air.windows.conf
     ```
-
+- Or if you want to use docker, run:
+```shell
+docker-compose up --build -d
+```
 The API should now be running on http://127.0.0.1:3000.
 
 ## Contributing
