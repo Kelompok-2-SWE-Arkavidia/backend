@@ -2,12 +2,12 @@ FROM golang:1.23-alpine AS builder
 
 WORKDIR /app
 
-COPY go.mod . 
+COPY go.mod .
 COPY go.sum .
 RUN go mod download
 
-COPY . . 
-COPY config.yaml .
+COPY . .
+
 RUN go build -o main ./cmd
 
 FROM alpine:latest
@@ -15,5 +15,7 @@ FROM alpine:latest
 WORKDIR /app
 
 COPY --from=builder /app/main .
+
+COPY --from=builder /app/config.yaml .
 
 CMD ["/app/main"]
