@@ -15,8 +15,6 @@ type User struct {
 	ProfilePicture string    `json:"profile_picture"`
 	Role           string    `json:"role"`
 	Verified       bool      `gorm:"default:false" json:"verified"`
-	ActivePoint    int       `gorm:"default:0" json:"active_point"`
-	LevelPoint     int       `gorm:"default:0" json:"level_point"`
 
 	Timestamp
 }

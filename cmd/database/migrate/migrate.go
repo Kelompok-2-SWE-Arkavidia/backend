@@ -14,10 +14,6 @@ func Migrate(db *gorm.DB) error {
 		log.Fatalf("Error migrating user database: %v", err)
 		return err
 	}
-	if err := db.AutoMigrate(&entities2.Rank{}); err != nil {
-		log.Fatalf("Error migrating user database: %v", err)
-		return err
-	}
 	if err := db.AutoMigrate(&entities2.Transaction{}); err != nil {
 		log.Fatalf("Error migrating user database: %v", err)
 		return err

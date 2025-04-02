@@ -224,8 +224,6 @@ func (s *userService) Me(ctx context.Context, userID string) (domain.DetailUserR
 		return domain.DetailUserResponse{}, domain.ErrUserNotFound
 	}
 
-	totalPoint := user.ActivePoint + user.LevelPoint
-	rank, err := s.userRepository.GetRankByTotalPoint(ctx, totalPoint)
 	if err != nil {
 		return domain.DetailUserResponse{}, domain.ErrGetRank
 	}
@@ -237,9 +235,6 @@ func (s *userService) Me(ctx context.Context, userID string) (domain.DetailUserR
 		Contact:        user.Contact,
 		ProfilePicture: user.ProfilePicture,
 		Subscription:   user.Subscribe,
-		ActivePoint:    user.ActivePoint,
-		LevelPoint:     user.LevelPoint,
-		Rank:           rank.Name,
 	}, nil
 }
 
