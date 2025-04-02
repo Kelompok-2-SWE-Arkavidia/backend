@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"github.com/golang-jwt/jwt/v4"
 	"log"
-	"os"
 	"time"
 )
 
@@ -35,11 +34,8 @@ type (
 )
 
 func getSecretKey() string {
-	utils.LoadEnv()
-	secretKey := os.Getenv("JWT_SECRET_KEY")
-	if os.Getenv("JWT_SECRET") != "" {
-		secretKey = "pujodarmawan"
-	}
+	utils.LoadConfig()
+	secretKey := utils.GetConfig("JWT_SECRET")
 	return secretKey
 }
 

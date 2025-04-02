@@ -17,12 +17,12 @@ type MailConfig struct {
 
 func LoadMailConfig() MailConfig {
 	return MailConfig{
-		AppURL:       utils.GetEnv("APP_URL"),
-		SMTPHost:     utils.GetEnv("SMTP_HOST"),
-		SMTPPort:     utils.GetEnv("SMTP_PORT"),
-		SMTPSender:   utils.GetEnv("SMTP_SENDER_NAME"),
-		SMTPEmail:    utils.GetEnv("SMTP_AUTH_EMAIL"),
-		SMTPPassword: utils.GetEnv("SMTP_AUTH_PASSWORD"),
+		AppURL:       utils.GetConfig("APP_URL"),
+		SMTPHost:     utils.GetConfig("SMTP_HOST"),
+		SMTPPort:     utils.GetConfig("SMTP_PORT"),
+		SMTPSender:   utils.GetConfig("SMTP_SENDER_NAME"),
+		SMTPEmail:    utils.GetConfig("SMTP_AUTH_EMAIL"),
+		SMTPPassword: utils.GetConfig("SMTP_AUTH_PASSWORD"),
 	}
 }
 

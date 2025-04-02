@@ -13,7 +13,7 @@ import (
 )
 
 func DatabaseSetUp() (*gorm.DB, error) {
-	utils.LoadEnv()
+	utils.LoadConfig()
 	fmt.Println("Hi!")
 	// setting up database (migration and data)
 	db, err := config.ConnectDB()

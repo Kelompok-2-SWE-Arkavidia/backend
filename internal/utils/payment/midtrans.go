@@ -23,8 +23,8 @@ func LoadMidtransConfig() MidtransConfig {
 	prodMode := isProd == "true"
 
 	return MidtransConfig{
-		ClientKey: utils.GetEnv("CLIENT_KEY"),
-		ServerKey: utils.GetEnv("SERVER_KEY"),
+		ClientKey: utils.GetConfig("CLIENT_KEY"),
+		ServerKey: utils.GetConfig("SERVER_KEY"),
 		IsProd:    prodMode,
 	}
 }
