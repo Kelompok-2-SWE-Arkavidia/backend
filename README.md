@@ -60,10 +60,15 @@ Clean Architecture is a software design philosophy that emphasizes the separatio
 docker-compose up --build -d
 ```
 - Use your local machine
-    - At the first, migrate and seed the database:
+    - First, dont forget to create the database.
+    ```shell
+    psql -U <your_username>
+    CREATE DATABASE <db_name>
+    ```
+    - Then, migrate and seed the database:
         ```bash
           go run cmd/database/main.go -migrate -seed
-          ```
+        ```
     - Then you can run with **air** to automatically reload your application during development whenever you make changes to the source code (dont forget to install air first)
         ```shell
         go install github.com/air-verse/air@latest
