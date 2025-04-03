@@ -63,7 +63,7 @@ docker-compose up --build -d
     - First, dont forget to create the database.
     ```shell
     psql -U <your_username>
-    CREATE DATABASE <db_name>
+    CREATE DATABASE <db_name>;
     ```
     - Then, migrate and seed the database:
         ```bash
