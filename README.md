@@ -55,33 +55,32 @@ Clean Architecture is a software design philosophy that emphasizes the separatio
    go mod download
    ```
 4. Run the application:
-
-- At the first, migrate and seed the database:
-  ```bash
-  go run cmd/database/main.go -migrate -seed
-  ```
-- Then you can run with **air** to automatically reload your application during development whenever you make changes to the source code (dont forget to install air first)
-
-  ```shell
-  go install github.com/air-verse/air@latest
-  ```
-
-  - If you use mac:
-    ```shell
-    air -c .air.toml
-    ```
-  - If you use windows:
-    ```shell
-    air -c .air.windows.conf
-    ```
-  - If you use linux:
-    ```shell
-    air -c .air.windows.conf
-    ```
-- Or if you want to use docker, run:
+- Use Docker:
 ```shell
 docker-compose up --build -d
 ```
+- Use your local machine
+    - At the first, migrate and seed the database:
+        ```bash
+          go run cmd/database/main.go -migrate -seed
+          ```
+    - Then you can run with **air** to automatically reload your application during development whenever you make changes to the source code (dont forget to install air first)
+        ```shell
+        go install github.com/air-verse/air@latest
+        ```
+    
+        - If you use mac:
+          ```shell
+          air -c .air.toml
+          ```
+        - If you use windows:
+          ```shell
+          air -c .air.windows.conf
+          ```
+        - If you use linux:
+          ```shell
+          air -c .air.windows.conf
+          ```
 The API should now be running on http://127.0.0.1:3000.
 
 ## Contributing
