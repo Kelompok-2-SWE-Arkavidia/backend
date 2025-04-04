@@ -24,6 +24,7 @@ type (
 		VerifyEmail(ctx context.Context, req domain.VerifyEmailRequest) (domain.VerifyEmailResponse, error)
 		Me(ctx context.Context, userID string) (domain.DetailUserResponse, error)
 		Update(ctx context.Context, req domain.UpdateUserRequest, userID string) (domain.UpdateUserResponse, error)
+		ForgetPassword(ctx context.Context, req domain.ForgetPasswordRequest) error
 	}
 
 	userService struct {
@@ -115,10 +116,10 @@ func (s *userService) makeVerificationEmail(email string) (map[string]string, er
 	}
 	// for this, better you use your frontend url that will fetch this link.
 	// THIS IS ONLY EXAMPLE! DONT DO THIS IN PRODUCTION
-	appUrl := os.Getenv("APP_URL")
+	appUrl := utils.GetConfig("APP_URL")
 	verifyLink := appUrl + "/" + VerifyEmailRoute + "?token=" + token
 
-	readHtml, err := os.ReadFile("internal/utils/mailing/verification_mail.html")
+	readHtml, err := os.ReadFile("internal/utils/mailing/template/verification_mail.html")
 	if err != nil {
 		return nil, err
 	}
@@ -181,10 +182,6 @@ func (s *userService) VerifyEmail(ctx context.Context, req domain.VerifyEmailReq
 	if err != nil {
 		return domain.VerifyEmailResponse{}, domain.ErrTokenInvalid
 	}
-	// email, expired, err := s.jwtService.GetUserEmailByToken(req.Token)
-	// if err != nil {
-	// 	return domain.VerifyEmailResponse{}, domain.ErrTokenInvalid
-	// }
 
 	now := time.Now()
 
@@ -284,6 +281,53 @@ func (s *userService) Update(ctx context.Context, req domain.UpdateUserRequest, 
 		Contact:        upd.Contact,
 		ProfilePicture: upd.ProfilePicture,
 	}, nil
+}
+
+func (s *userService) ForgetPassword(ctx context.Context, req domain.ForgetPasswordRequest) error {
+	user, err := s.userRepository.GetEmail(ctx, req.Email)
+	if err != nil {
+		return domain.ErrEmailNotFound
+	}
+	if user.Verified != true {
+		return domain.ErrUserNotVerified
+	}
+
+	token, err := s.jwtService.GenerateTokenForgetPassword(map[string]any{
+		"email": req.Email,
+	}, time.Minute*5)
+	if err != nil {
+		return err
+	}
+
+	APP_URL := utils.GetConfig("APP_URL")
+	link := APP_URL + "reset?token=" + token
+	readHtml, err := os.ReadFile("internal/utils/mailing/template/forget_password.html")
+	if err != nil {
+		return err
+	}
+
+	data := map[string]any{
+		"resetPasswordLink": link,
+	}
+	tmpl, err := template.New("custom").Parse(string(readHtml))
+	if err != nil {
+		return err
+	}
+
+	var strMail bytes.Buffer
+	if err := tmpl.Execute(&strMail, data); err != nil {
+		return err
+	}
+
+	draftEmail := map[string]string{
+		"subject": "Password Reset for Foodia",
+		"body":    strMail.String(),
+	}
+
+	if err := mailing.SendMail(req.Email, draftEmail["subject"], draftEmail["body"]); err != nil {
+		return err
+	}
+	return nil
 }
 
 func ifNotEmpty(value, defaultValue string) string {

@@ -16,6 +16,7 @@ type (
 		VerifyEmail(c *fiber.Ctx) error
 		Me(c *fiber.Ctx) error
 		UpdateUser(c *fiber.Ctx) error
+		ForgotPassword(c *fiber.Ctx) error
 	}
 	userHandler struct {
 		UserService user.UserService
@@ -129,4 +130,21 @@ func (h *userHandler) UpdateUser(c *fiber.Ctx) error {
 		return presenters.ErrorResponse(c, fiber.StatusBadRequest, domain.MessageFailedUpdateUser, err)
 	}
 	return presenters.SuccessResponse(c, res, fiber.StatusOK, domain.MessageSuccessUpdateUser)
+}
+
+func (h *userHandler) ForgotPassword(c *fiber.Ctx) error {
+	req := new(domain.ForgetPasswordRequest)
+
+	if err := c.BodyParser(req); err != nil {
+		return presenters.ErrorResponse(c, fiber.StatusBadRequest, domain.MessageFailedBodyRequest, err)
+	}
+
+	if err := h.Validator.Struct(req); err != nil {
+		return presenters.ErrorResponse(c, fiber.StatusBadRequest, domain.MessageFailedBodyRequest, err)
+	}
+
+	if err := h.UserService.ForgetPassword(c.Context(), *req); err != nil {
+		return presenters.ErrorResponse(c, fiber.StatusBadRequest, domain.MessageFailedSendEmail, err)
+	}
+	return presenters.SuccessResponse(c, nil, fiber.StatusOK, domain.MessageSuccessSendEmail)
 }
