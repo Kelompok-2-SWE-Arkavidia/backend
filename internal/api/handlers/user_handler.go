@@ -3,7 +3,9 @@ package handlers
 import (
 	"Go-Starter-Template/domain"
 	"Go-Starter-Template/internal/api/presenters"
+	"Go-Starter-Template/pkg/jwt"
 	"Go-Starter-Template/pkg/user"
+	"errors"
 	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2"
 )
@@ -17,17 +19,20 @@ type (
 		Me(c *fiber.Ctx) error
 		UpdateUser(c *fiber.Ctx) error
 		ForgotPassword(c *fiber.Ctx) error
+		ResetPassword(c *fiber.Ctx) error
 	}
 	userHandler struct {
 		UserService user.UserService
 		Validator   *validator.Validate
+		JWTService  jwt.JWTService
 	}
 )
 
-func NewUserHandler(userService user.UserService, validator *validator.Validate) UserHandler {
+func NewUserHandler(userService user.UserService, validator *validator.Validate, jwtService jwt.JWTService) UserHandler {
 	return &userHandler{
 		UserService: userService,
 		Validator:   validator,
+		JWTService:  jwtService,
 	}
 }
 
@@ -147,4 +152,36 @@ func (h *userHandler) ForgotPassword(c *fiber.Ctx) error {
 		return presenters.ErrorResponse(c, fiber.StatusBadRequest, domain.MessageFailedSendEmail, err)
 	}
 	return presenters.SuccessResponse(c, nil, fiber.StatusOK, domain.MessageSuccessSendEmail)
+}
+
+func (h *userHandler) ResetPassword(c *fiber.Ctx) error {
+	token := c.Query("token")
+	if token == "" {
+		return presenters.ErrorResponse(c, fiber.StatusBadRequest, domain.MessageFailedGetToken, errors.New("token required"))
+	}
+
+	claims, err := h.JWTService.ValidateTokenForgetPassword(token)
+	if err != nil {
+		return presenters.ErrorResponse(c, fiber.StatusBadRequest, domain.MessageFailedTokenInvalid, err)
+	}
+
+	req := new(domain.ResetPasswordRequest)
+	if err := c.BodyParser(req); err != nil {
+		return presenters.ErrorResponse(c, fiber.StatusBadRequest, domain.MessageFailedBodyRequest, err)
+	}
+
+	if err := h.Validator.Struct(req); err != nil {
+		return presenters.ErrorResponse(c, fiber.StatusBadRequest, domain.MessageFailedBodyRequest, err)
+	}
+
+	email, ok := claims["email"].(string)
+	if !ok {
+		return presenters.ErrorResponse(c, fiber.StatusBadRequest, domain.MessageFailedTokenInvalid, err)
+	}
+
+	if err := h.UserService.ResetPassword(c.Context(), email, req.Password); err != nil {
+		return presenters.ErrorResponse(c, fiber.StatusBadRequest, domain.MessageFailedUpdatePassword, err)
+	}
+
+	return presenters.SuccessResponse(c, nil, fiber.StatusOK, domain.MessageSuccessUpdatePassword)
 }

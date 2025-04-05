@@ -33,6 +33,7 @@ func (c *Config) User() {
 		user.Get("/me", c.Middleware.AuthMiddleware(c.JWTService), c.UserHandler.Me)
 		user.Patch("/update", c.Middleware.AuthMiddleware(c.JWTService), c.UserHandler.UpdateUser)
 		user.Post("/forget", c.UserHandler.ForgotPassword)
+		user.Post("/reset", c.UserHandler.ResetPassword)
 		user.Post("/subscribe", c.Middleware.AuthMiddleware(c.JWTService), c.MidtransHandler.CreateTransaction)
 	}
 }

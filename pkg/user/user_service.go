@@ -25,6 +25,7 @@ type (
 		Me(ctx context.Context, userID string) (domain.DetailUserResponse, error)
 		Update(ctx context.Context, req domain.UpdateUserRequest, userID string) (domain.UpdateUserResponse, error)
 		ForgetPassword(ctx context.Context, req domain.ForgetPasswordRequest) error
+		ResetPassword(ctx context.Context, email, password string) error
 	}
 
 	userService struct {
@@ -328,6 +329,24 @@ func (s *userService) ForgetPassword(ctx context.Context, req domain.ForgetPassw
 		return err
 	}
 	return nil
+}
+
+func (s *userService) ResetPassword(ctx context.Context, email, password string) error {
+	user, err := s.userRepository.GetEmail(ctx, email)
+	if err != nil {
+		return err
+	}
+
+	if user == nil {
+		return domain.ErrUserNotFound
+	}
+
+	hashedPassword, err := utils.HashPassword(password)
+	if err != nil {
+		return err
+	}
+
+	return s.userRepository.UpdatePassword(ctx, email, hashedPassword)
 }
 
 func ifNotEmpty(value, defaultValue string) string {

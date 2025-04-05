@@ -67,7 +67,7 @@ func NewApp(db *gorm.DB) (*fiber.App, error) {
 	)
 
 	// Handler
-	userHandler := handlers.NewUserHandler(userService, validator)
+	userHandler := handlers.NewUserHandler(userService, validator, jwtService)
 	midtransHandler := handlers.NewMidtransHandler(midtransService, validator)
 
 	// routes

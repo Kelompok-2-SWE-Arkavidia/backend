@@ -14,6 +14,8 @@ const (
 var (
 	MesaageUserNotAllowed       = "user not allowed"
 	MessageFailedProcessRequest = "failed to process request"
+	MessageFailedGetToken       = "failed to get token"
+	MessageFailedTokenInvalid   = "failed to token invalid"
 
 	JwtSecret = os.Getenv("JWT_SECRET")
 
