@@ -23,7 +23,7 @@ func (c *Config) Setup() {
 }
 
 func (c *Config) User() {
-	user := c.App.Group("/api-spec/v1/users")
+	user := c.App.Group("/api/v1/users")
 	// user routes
 	{
 		user.Post("/register", c.UserHandler.Register)
@@ -32,6 +32,8 @@ func (c *Config) User() {
 		user.Get("/verify", c.UserHandler.VerifyEmail)
 		user.Get("/me", c.Middleware.AuthMiddleware(c.JWTService), c.UserHandler.Me)
 		user.Patch("/update", c.Middleware.AuthMiddleware(c.JWTService), c.UserHandler.UpdateUser)
+		user.Post("/forget", c.UserHandler.ForgotPassword)
+		user.Post("/reset", c.UserHandler.ResetPassword)
 		user.Post("/subscribe", c.Middleware.AuthMiddleware(c.JWTService), c.MidtransHandler.CreateTransaction)
 	}
 }

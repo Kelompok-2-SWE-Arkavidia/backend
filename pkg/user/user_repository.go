@@ -14,6 +14,7 @@ type (
 		UpdateUser(ctx context.Context, user entities.User) (*entities.User, error)
 		GetUserByID(ctx context.Context, id string) (*entities.User, error)
 		UpdateSubscriptionStatus(ctx context.Context, userID string) error
+		UpdatePassword(ctx context.Context, email string, newPassword string) error
 	}
 	userRepository struct {
 		db *gorm.DB
@@ -62,6 +63,15 @@ func (r *userRepository) UpdateSubscriptionStatus(ctx context.Context, userID st
 		Model(&entities.User{}).
 		Where("id = ?", userID).
 		Updates(map[string]interface{}{"subscribe": true}).Error; err != nil {
+		return err
+	}
+	return nil
+}
+
+func (r *userRepository) UpdatePassword(ctx context.Context, email string, newPassword string) error {
+	if err := r.db.WithContext(ctx).Model(&entities.User{}).
+		Where("email = ?", email).
+		Update("password", newPassword).Error; err != nil {
 		return err
 	}
 	return nil

@@ -12,11 +12,15 @@ var (
 	MessageSuccessGetDetail            = "success get detail"
 	MessageSuccessSendVerificationMail = "send verify email success"
 	MessageSuccessUpdateUser           = "update user success"
+	MessageSuccessSendEmail            = "send email success"
+	MessageSuccessUpdatePassword       = "update user password"
 
-	MessageFailedBodyRequest = "body request failed"
-	MessageFailedRegister    = "register failed"
-	MessageFailedGetDetail   = "failed get detail"
-	MessageFailedUpdateUser  = "failed update user"
+	MessageFailedBodyRequest    = "body request failed"
+	MessageFailedRegister       = "register failed"
+	MessageFailedGetDetail      = "failed get detail"
+	MessageFailedUpdateUser     = "failed update user"
+	MessageFailedSendEmail      = "failed send email"
+	MessageFailedUpdatePassword = "failed update password"
 
 	ErrAccountAlreadyVerified = errors.New("account already verified")
 	ErrEmailAlreadyExists     = errors.New("email already exists")
@@ -94,5 +98,13 @@ type (
 		Email          string `json:"email"`
 		Contact        string `json:"contact"`
 		ProfilePicture string `json:"profile_picture"`
+	}
+
+	ForgetPasswordRequest struct {
+		Email string `json:"email" validate:"required,email"`
+	}
+
+	ResetPasswordRequest struct {
+		Password string `json:"password" validate:"required,min=8"`
 	}
 )
