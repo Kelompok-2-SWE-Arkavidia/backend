@@ -301,7 +301,7 @@ func (s *userService) ForgetPassword(ctx context.Context, req domain.ForgetPassw
 	}
 
 	APP_URL := utils.GetConfig("APP_URL")
-	link := APP_URL + "reset?token=" + token
+	link := APP_URL + "/reset?token=" + token
 	readHtml, err := os.ReadFile("internal/utils/mailing/template/forget_password.html")
 	if err != nil {
 		return err

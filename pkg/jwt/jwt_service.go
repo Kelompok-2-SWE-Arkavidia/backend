@@ -13,7 +13,7 @@ import (
 type (
 	JWTService interface {
 		GenerateTokenUser(userId string, role string) string
-		ValidateTokenUser(token string) (*jwt.Token, error)
+		ValidateToken(token string) (*jwt.Token, error)
 		GetUserIDByToken(token string) (string, string, error)
 		GenerateTokenForgetPassword(data map[string]any, duration time.Duration) (string, error)
 		ValidateTokenForgetPassword(token string) (jwt.MapClaims, error)
@@ -70,12 +70,17 @@ func (j *jwtService) parseToken(t_ *jwt.Token) (any, error) {
 	return []byte(j.secretKey), nil
 }
 
-func (j *jwtService) ValidateTokenUser(token string) (*jwt.Token, error) {
-	return jwt.ParseWithClaims(token, &jwtUserClaim{}, j.parseToken)
+func (j *jwtService) ValidateToken(token string) (*jwt.Token, error) {
+	return jwt.Parse(token, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, errors.New("unexpected signing method")
+		}
+		return []byte(j.secretKey), nil
+	})
 }
 
 func (j *jwtService) GetUserIDByToken(token string) (string, string, error) {
-	t_Token, err := j.ValidateTokenUser(token)
+	t_Token, err := j.ValidateToken(token)
 	if err != nil {
 		if errors.Is(err, jwt.ErrTokenExpired) {
 			return "", "", domain.ErrTokenExpired
@@ -109,7 +114,7 @@ func (j *jwtService) GenerateTokenForgetPassword(data map[string]any, duration t
 }
 
 func (j *jwtService) ValidateTokenForgetPassword(token string) (jwt.MapClaims, error) {
-	t_Token, err := j.ValidateTokenUser(token)
+	t_Token, err := j.ValidateToken(token)
 	if err != nil {
 		return jwt.MapClaims{}, domain.ErrTokenExpired
 	}
