@@ -16,7 +16,10 @@ func AESEncrypt(stringToEncrypt string) (encryptedString string, err error) {
 	// if err := Init(); err != nil {
 	// 	return "", err
 	// }
-	KEY := os.Getenv("AES_KEY")
+	//KEY := os.Getenv("AES_KEY")
+
+	//Get AES key from config
+	KEY := config.AESKey
 	key, _ := hex.DecodeString(KEY)
 	plaintext := []byte(stringToEncrypt)
 
