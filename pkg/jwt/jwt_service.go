@@ -91,10 +91,13 @@ func (j *jwtService) GetUserIDByToken(token string) (string, string, error) {
 		return "", "", domain.ErrTokenInvalid
 	}
 
-	claims := t_Token.Claims.(*jwtUserClaim)
+	claims, ok := t_Token.Claims.(jwt.MapClaims)
+	if !ok {
+		return "", "", domain.ErrTokenInvalid
+	}
 
-	id := fmt.Sprintf("%v", claims.UserID)
-	role := fmt.Sprintf("%v", claims.Role)
+	id := fmt.Sprintf("%v", claims["user_id"])
+	role := fmt.Sprintf("%v", claims["role"])
 	return id, role, nil
 }
 

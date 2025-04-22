@@ -43,7 +43,7 @@ func NewUserService(userRepository UserRepository, jwtService jwt.JWTService, s3
 	}
 }
 
-var VerifyEmailRoute = "api-spec/v1/users/verify"
+var VerifyEmailRoute = "api/v1/users/verify"
 
 func (s *userService) Register(ctx context.Context, req domain.UserRegisterRequest) (domain.UserRegisterResponse, error) {
 	// checking user if exist
