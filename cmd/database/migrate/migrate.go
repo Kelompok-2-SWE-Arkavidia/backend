@@ -9,7 +9,6 @@ import (
 )
 
 func Migrate(db *gorm.DB) error {
-	// Setup PostgreSQL extensions for geographical calculations
 	db.Exec("CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";")
 	db.Exec("CREATE EXTENSION IF NOT EXISTS \"earthdistance\" CASCADE;")
 	db.Exec("CREATE EXTENSION IF NOT EXISTS \"cube\";")

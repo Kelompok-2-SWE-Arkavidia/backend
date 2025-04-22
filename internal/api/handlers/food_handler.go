@@ -4,6 +4,7 @@ import (
 	"Go-Starter-Template/domain"
 	"Go-Starter-Template/internal/api/presenters"
 	"Go-Starter-Template/pkg/food"
+	"errors"
 	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2"
 	"strconv"
@@ -134,12 +135,10 @@ func (h *foodHandler) UploadFoodImage(c *fiber.Ctx) error {
 	userID := c.Locals("user_id").(string)
 	req := new(domain.UploadFoodImageRequest)
 
-	// Parse form fields
 	if err := c.BodyParser(req); err != nil {
 		return presenters.ErrorResponse(c, fiber.StatusBadRequest, domain.MessageFailedBodyRequest, err)
 	}
 
-	// Get file
 	file, err := c.FormFile("image")
 	if err != nil {
 		return presenters.ErrorResponse(c, fiber.StatusBadRequest, domain.MessageFailedBodyRequest, err)
@@ -152,10 +151,13 @@ func (h *foodHandler) UploadFoodImage(c *fiber.Ctx) error {
 	}
 
 	if err := h.foodService.UploadFoodImage(c.Context(), *req, userID); err != nil {
+		if errors.Is(err, domain.ErrGeminiProcessingFailed) {
+			return presenters.ErrorResponse(c, fiber.StatusBadRequest, domain.MessageFailedDetectFoodAge, err)
+		}
 		return presenters.ErrorResponse(c, fiber.StatusBadRequest, domain.MessageFailedBodyRequest, err)
 	}
 
-	return presenters.SuccessResponse(c, nil, fiber.StatusOK, "Image uploaded successfully")
+	return presenters.SuccessResponse(c, nil, fiber.StatusOK, "Image uploaded successfully and food analyzed")
 }
 
 func (h *foodHandler) UploadReceipt(c *fiber.Ctx) error {

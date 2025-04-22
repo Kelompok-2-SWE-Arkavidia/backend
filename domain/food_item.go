@@ -25,6 +25,7 @@ var (
 	MessageFailedSaveScannedItems  = "failed to save scanned items"
 	MessageFailedMarkAsDamaged     = "failed to mark food item as damaged"
 	MessageFailedGetDashboardStats = "failed to retrieve dashboard statistics"
+	MessageFailedDetectFoodAge     = "failed to detect food age from image"
 
 	ErrFoodItemNotFound        = errors.New("food item not found")
 	ErrReceiptProcessingFailed = errors.New("receipt processing failed")
@@ -33,30 +34,34 @@ var (
 	ErrInvalidImageFormat      = errors.New("invalid image format")
 	ErrInvalidReceiptScan      = errors.New("invalid receipt scan ID")
 	ErrUnauthorizedAccess      = errors.New("unauthorized access to food item")
+	ErrGeminiProcessingFailed  = errors.New("gemini processing failed")
 )
 
 type (
 	AddFoodItemRequest struct {
-		Name       string `json:"name" validate:"required"`
-		Quantity   int    `json:"quantity" validate:"required,min=1"`
-		ExpiryDate string `json:"expiry_date" validate:"required"`
-		IsPackaged bool   `json:"is_packaged"`
+		Name        string `json:"name" validate:"required"`
+		Quantity    int    `json:"quantity" validate:"required,min=1"`
+		UnitMeasure string `json:"unit_measure" validate:"required"`
+		ExpiryDate  string `json:"expiry_date" validate:"required"`
+		IsPackaged  bool   `json:"is_packaged"`
 	}
 
 	AddFoodItemResponse struct {
-		ID         string    `json:"id"`
-		Name       string    `json:"name"`
-		Quantity   int       `json:"quantity"`
-		ExpiryDate time.Time `json:"expiry_date"`
-		IsPackaged bool      `json:"is_packaged"`
-		Status     string    `json:"status"`
+		ID          string    `json:"id"`
+		Name        string    `json:"name"`
+		Quantity    int       `json:"quantity"`
+		UnitMeasure string    `json:"unit_measure"`
+		ExpiryDate  time.Time `json:"expiry_date"`
+		IsPackaged  bool      `json:"is_packaged"`
+		Status      string    `json:"status"`
 	}
 
 	UpdateFoodItemRequest struct {
-		Name       string `json:"name" validate:"omitempty"`
-		Quantity   int    `json:"quantity" validate:"omitempty,min=1"`
-		ExpiryDate string `json:"expiry_date" validate:"omitempty"`
-		IsPackaged bool   `json:"is_packaged"`
+		Name        string `json:"name" validate:"omitempty"`
+		Quantity    int    `json:"quantity" validate:"omitempty,min=1"`
+		UnitMeasure string `json:"unit_measure" validate:"omitempty"`
+		ExpiryDate  string `json:"expiry_date" validate:"omitempty"`
+		IsPackaged  bool   `json:"is_packaged"`
 	}
 
 	UploadFoodImageRequest struct {
@@ -75,10 +80,11 @@ type (
 	}
 
 	ScannedItemRequest struct {
-		Name       string `json:"name" validate:"required"`
-		Quantity   int    `json:"quantity" validate:"required,min=1"`
-		ExpiryDate string `json:"expiry_date" validate:"required"`
-		IsPackaged bool   `json:"is_packaged"`
+		Name        string `json:"name" validate:"required"`
+		Quantity    int    `json:"quantity" validate:"required,min=1"`
+		UnitMeasure string `json:"unit_measure" validate:"required"`
+		ExpiryDate  string `json:"expiry_date" validate:"required"`
+		IsPackaged  bool   `json:"is_packaged"`
 	}
 
 	SaveScannedItemsRequest struct {
@@ -87,14 +93,15 @@ type (
 	}
 
 	FoodItemResponse struct {
-		ID         string    `json:"id"`
-		Name       string    `json:"name"`
-		Quantity   int       `json:"quantity"`
-		ExpiryDate time.Time `json:"expiry_date"`
-		IsPackaged bool      `json:"is_packaged"`
-		Status     string    `json:"status"`
-		ImageURL   string    `json:"image_url,omitempty"`
-		CreatedAt  time.Time `json:"created_at"`
+		ID          string    `json:"id"`
+		Name        string    `json:"name"`
+		Quantity    int       `json:"quantity"`
+		UnitMeasure string    `json:"unit_measure"`
+		ExpiryDate  time.Time `json:"expiry_date"`
+		IsPackaged  bool      `json:"is_packaged"`
+		Status      string    `json:"status"`
+		ImageURL    string    `json:"image_url,omitempty"`
+		CreatedAt   time.Time `json:"created_at"`
 	}
 
 	MarkAsDamagedRequest struct {
@@ -110,5 +117,12 @@ type (
 		SavedItems       int     `json:"saved_items"`
 		WastedItems      int     `json:"wasted_items"`
 		EstimatedSavings float64 `json:"estimated_savings"`
+	}
+
+	GeminiResponse struct {
+		EstimatedAge    int       `json:"estimated_age"`
+		EstimatedExpiry time.Time `json:"estimated_expiry"`
+		FoodType        string    `json:"food_type"`
+		Confidence      float64   `json:"confidence"`
 	}
 )

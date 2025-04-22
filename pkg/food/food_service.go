@@ -3,11 +3,21 @@ package food
 import (
 	"Go-Starter-Template/domain"
 	"Go-Starter-Template/entities"
+	"Go-Starter-Template/internal/utils"
 	"Go-Starter-Template/internal/utils/storage"
+	"bytes"
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
+	"io"
+	"log"
+	"mime/multipart"
+	"net/http"
+	"os"
+	"strings"
 	"time"
 )
 
@@ -24,8 +34,8 @@ type (
 		MarkAsDamaged(ctx context.Context, req domain.MarkAsDamagedRequest, userID string) error
 		GetDashboardStats(ctx context.Context, userID string) (domain.DashboardStatsResponse, error)
 
-		// OCR service would be here in a real implementation
-		ProcessReceiptOCR(receiptURL string) (map[string]interface{}, error)
+		// New methods
+		DetectFoodAge(ctx context.Context, imageFile *multipart.FileHeader) (domain.GeminiResponse, error)
 	}
 
 	foodService struct {
@@ -65,6 +75,7 @@ func (s *foodService) AddFoodItem(ctx context.Context, req domain.AddFoodItemReq
 		UserID:        userUUID,
 		Name:          req.Name,
 		Quantity:      req.Quantity,
+		UnitMeasure:   req.UnitMeasure, // Added unit measure
 		ExpiryDate:    expiryDate,
 		IsPackaged:    req.IsPackaged,
 		Status:        status,
@@ -76,12 +87,13 @@ func (s *foodService) AddFoodItem(ctx context.Context, req domain.AddFoodItemReq
 	}
 
 	return domain.AddFoodItemResponse{
-		ID:         foodItem.ID.String(),
-		Name:       foodItem.Name,
-		Quantity:   foodItem.Quantity,
-		ExpiryDate: foodItem.ExpiryDate,
-		IsPackaged: foodItem.IsPackaged,
-		Status:     foodItem.Status,
+		ID:          foodItem.ID.String(),
+		Name:        foodItem.Name,
+		Quantity:    foodItem.Quantity,
+		UnitMeasure: foodItem.UnitMeasure, // Added unit measure
+		ExpiryDate:  foodItem.ExpiryDate,
+		IsPackaged:  foodItem.IsPackaged,
+		Status:      foodItem.Status,
 	}, nil
 }
 
@@ -106,6 +118,10 @@ func (s *foodService) UpdateFoodItem(ctx context.Context, id string, req domain.
 
 	if req.Quantity > 0 {
 		foodItem.Quantity = req.Quantity
+	}
+
+	if req.UnitMeasure != "" {
+		foodItem.UnitMeasure = req.UnitMeasure
 	}
 
 	if req.ExpiryDate != "" {
@@ -158,14 +174,15 @@ func (s *foodService) GetFoodItems(ctx context.Context, userID string, status st
 	var response []domain.FoodItemResponse
 	for _, item := range foodItems {
 		response = append(response, domain.FoodItemResponse{
-			ID:         item.ID.String(),
-			Name:       item.Name,
-			Quantity:   item.Quantity,
-			ExpiryDate: item.ExpiryDate,
-			IsPackaged: item.IsPackaged,
-			Status:     item.Status,
-			ImageURL:   item.ImageURL,
-			CreatedAt:  item.CreatedAt,
+			ID:          item.ID.String(),
+			Name:        item.Name,
+			Quantity:    item.Quantity,
+			UnitMeasure: item.UnitMeasure, // Added unit measure
+			ExpiryDate:  item.ExpiryDate,
+			IsPackaged:  item.IsPackaged,
+			Status:      item.Status,
+			ImageURL:    item.ImageURL,
+			CreatedAt:   item.CreatedAt,
 		})
 	}
 
@@ -187,14 +204,15 @@ func (s *foodService) GetFoodItemByID(ctx context.Context, id string, userID str
 	}
 
 	return domain.FoodItemResponse{
-		ID:         foodItem.ID.String(),
-		Name:       foodItem.Name,
-		Quantity:   foodItem.Quantity,
-		ExpiryDate: foodItem.ExpiryDate,
-		IsPackaged: foodItem.IsPackaged,
-		Status:     foodItem.Status,
-		ImageURL:   foodItem.ImageURL,
-		CreatedAt:  foodItem.CreatedAt,
+		ID:          foodItem.ID.String(),
+		Name:        foodItem.Name,
+		Quantity:    foodItem.Quantity,
+		UnitMeasure: foodItem.UnitMeasure, // Added unit measure
+		ExpiryDate:  foodItem.ExpiryDate,
+		IsPackaged:  foodItem.IsPackaged,
+		Status:      foodItem.Status,
+		ImageURL:    foodItem.ImageURL,
+		CreatedAt:   foodItem.CreatedAt,
 	}, nil
 }
 
@@ -207,18 +225,15 @@ func (s *foodService) UploadFoodImage(ctx context.Context, req domain.UploadFood
 		return err
 	}
 
-	// Verify ownership
 	if foodItem.UserID.String() != userID {
 		return domain.ErrUnauthorizedAccess
 	}
 
-	// Upload image to S3
 	fileName := fmt.Sprintf("food-item-%s", foodItem.ID.String())
 	var objectKey string
 	var uploadErr error
 
 	if foodItem.ImageURL != "" {
-		// Update existing image
 		existingKey := s.s3.GetObjectKeyFromLink(foodItem.ImageURL)
 		if existingKey != "" {
 			objectKey, uploadErr = s.s3.UpdateFile(existingKey, req.Image, storage.AllowImage...)
@@ -226,7 +241,6 @@ func (s *foodService) UploadFoodImage(ctx context.Context, req domain.UploadFood
 			objectKey, uploadErr = s.s3.UploadFile(fileName, req.Image, "food-items", storage.AllowImage...)
 		}
 	} else {
-		// Upload new image
 		objectKey, uploadErr = s.s3.UploadFile(fileName, req.Image, "food-items", storage.AllowImage...)
 	}
 
@@ -234,10 +248,119 @@ func (s *foodService) UploadFoodImage(ctx context.Context, req domain.UploadFood
 		return uploadErr
 	}
 
-	// Update food item with image URL
 	foodItem.ImageURL = s.s3.GetPublicLinkKey(objectKey)
 
+	geminiResponse, err := s.DetectFoodAge(ctx, req.Image)
+	if err != nil {
+		fmt.Printf("Error analyzing food image with Gemini: %v\n", err)
+	} else {
+		foodItem.Name = geminiResponse.FoodType
+		foodItem.ExpiryDate = geminiResponse.EstimatedExpiry
+		foodItem.Status = determineStatus(geminiResponse.EstimatedExpiry)
+	}
+
 	return s.foodRepository.UpdateFoodItem(ctx, foodItem)
+}
+
+func (s *foodService) DetectFoodAge(ctx context.Context, imageFile *multipart.FileHeader) (domain.GeminiResponse, error) {
+	file, err := imageFile.Open()
+	if err != nil {
+		return domain.GeminiResponse{}, err
+	}
+	defer file.Close()
+
+	fileData, err := io.ReadAll(file)
+	if err != nil {
+		return domain.GeminiResponse{}, err
+	}
+
+	base64Image := base64.StdEncoding.EncodeToString(fileData)
+
+	geminiAPIKey := os.Getenv("GEMINI_API_KEY")
+	if geminiAPIKey == "" {
+		return domain.GeminiResponse{}, fmt.Errorf("GEMINI_API_KEY environment variable not set")
+	}
+
+	geminiURL := "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro-vision:generateContent?key=" + geminiAPIKey
+
+	requestBody := map[string]interface{}{
+		"contents": []map[string]interface{}{
+			{
+				"parts": []map[string]interface{}{
+					{
+						"text": "Analyze this food image and provide the following information in JSON format: 1) food type, 2) estimated age in days, 3) estimated expiry date (YYYY-MM-DD), 4) confidence score between 0-1. Only return the JSON response with no additional text.",
+					},
+					{
+						"inline_data": map[string]interface{}{
+							"mime_type": imageFile.Header.Get("Content-Type"),
+							"data":      base64Image,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	requestJSON, err := json.Marshal(requestBody)
+	if err != nil {
+		return domain.GeminiResponse{}, err
+	}
+
+	httpClient := &http.Client{Timeout: 30 * time.Second}
+	req, err := http.NewRequestWithContext(ctx, "POST", geminiURL, bytes.NewBuffer(requestJSON))
+	if err != nil {
+		return domain.GeminiResponse{}, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return domain.GeminiResponse{}, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return domain.GeminiResponse{}, fmt.Errorf("gemini API error: %s - %s", resp.Status, string(bodyBytes))
+	}
+
+	// Parse the response
+	var geminiResp struct {
+		Candidates []struct {
+			Content struct {
+				Parts []struct {
+					Text string `json:"text"`
+				} `json:"parts"`
+			} `json:"content"`
+		} `json:"candidates"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&geminiResp); err != nil {
+		return domain.GeminiResponse{}, err
+	}
+
+	if len(geminiResp.Candidates) == 0 || len(geminiResp.Candidates[0].Content.Parts) == 0 {
+		return domain.GeminiResponse{}, domain.ErrGeminiProcessingFailed
+	}
+
+	// Extract JSON from text response
+	responseText := geminiResp.Candidates[0].Content.Parts[0].Text
+	var foodAnalysis domain.GeminiResponse
+
+	// Strip any markdown code blocks if present
+	jsonStr := responseText
+	if len(jsonStr) >= 7 && jsonStr[:7] == "```json" {
+		jsonStr = jsonStr[7:]
+		if endIdx := strings.LastIndex(jsonStr, "```"); endIdx >= 0 {
+			jsonStr = jsonStr[:endIdx]
+		}
+	}
+
+	if err := json.Unmarshal([]byte(jsonStr), &foodAnalysis); err != nil {
+		return domain.GeminiResponse{}, err
+	}
+
+	return foodAnalysis, nil
 }
 
 func (s *foodService) UploadReceipt(ctx context.Context, req domain.UploadReceiptRequest, userID string) (domain.UploadReceiptResponse, error) {
@@ -270,17 +393,133 @@ func (s *foodService) UploadReceipt(ctx context.Context, req domain.UploadReceip
 		return domain.UploadReceiptResponse{}, err
 	}
 
-	// Process the receipt with OCR (in a real implementation, this might be async)
+	// Process receipt asynchronously
 	go func() {
-		results, err := s.ProcessReceiptOCR(imageURL)
+		// Get the AI model URL from config
+		aiModelURL := utils.GetConfig("AI_MODEL_URL")
+		if aiModelURL == "" {
+			receiptScan.Status = "Failed"
+			receiptScan.OcrResults = "Error: AI Model URL not configured"
+			_ = s.foodRepository.UpdateReceiptScan(context.Background(), receiptScan)
+			return
+		}
+
+		// Open the file to send to AI service
+		file, err := req.ReceiptImage.Open()
 		if err != nil {
 			receiptScan.Status = "Failed"
-			receiptScan.OcrResults = fmt.Sprintf("Error: %s", err.Error())
-		} else {
-			receiptScan.Status = "Processed"
-			receiptScan.OcrResults = fmt.Sprintf("%v", results)
+			receiptScan.OcrResults = fmt.Sprintf("Error opening file: %s", err.Error())
+			_ = s.foodRepository.UpdateReceiptScan(context.Background(), receiptScan)
+			return
 		}
-		_ = s.foodRepository.UpdateReceiptScan(context.Background(), receiptScan)
+		defer file.Close()
+
+		// Create a new buffer to store file contents
+		fileBytes, err := io.ReadAll(file)
+		if err != nil {
+			receiptScan.Status = "Failed"
+			receiptScan.OcrResults = fmt.Sprintf("Error reading file: %s", err.Error())
+			_ = s.foodRepository.UpdateReceiptScan(context.Background(), receiptScan)
+			return
+		}
+
+		// Create a new multipart writer
+		body := &bytes.Buffer{}
+		writer := multipart.NewWriter(body)
+
+		// Create a form file
+		part, err := writer.CreateFormFile("image", req.ReceiptImage.Filename)
+		if err != nil {
+			receiptScan.Status = "Failed"
+			receiptScan.OcrResults = fmt.Sprintf("Error creating form file: %s", err.Error())
+			_ = s.foodRepository.UpdateReceiptScan(context.Background(), receiptScan)
+			return
+		}
+
+		// Write file content to form file
+		if _, err = part.Write(fileBytes); err != nil {
+			receiptScan.Status = "Failed"
+			receiptScan.OcrResults = fmt.Sprintf("Error writing to form file: %s", err.Error())
+			_ = s.foodRepository.UpdateReceiptScan(context.Background(), receiptScan)
+			return
+		}
+
+		// Close the multipart writer
+		if err = writer.Close(); err != nil {
+			receiptScan.Status = "Failed"
+			receiptScan.OcrResults = fmt.Sprintf("Error closing writer: %s", err.Error())
+			_ = s.foodRepository.UpdateReceiptScan(context.Background(), receiptScan)
+			return
+		}
+
+		// Create HTTP request to AI model service
+		httpReq, err := http.NewRequest("POST", aiModelURL, body)
+		if err != nil {
+			receiptScan.Status = "Failed"
+			receiptScan.OcrResults = fmt.Sprintf("Error creating request: %s", err.Error())
+			_ = s.foodRepository.UpdateReceiptScan(context.Background(), receiptScan)
+			return
+		}
+
+		// Set headers
+		httpReq.Header.Set("Content-Type", writer.FormDataContentType())
+
+		// Send request to AI model service
+		client := &http.Client{Timeout: 60 * time.Second}
+		resp, err := client.Do(httpReq)
+		if err != nil {
+			receiptScan.Status = "Failed"
+			receiptScan.OcrResults = fmt.Sprintf("Error sending request to AI model: %s", err.Error())
+			_ = s.foodRepository.UpdateReceiptScan(context.Background(), receiptScan)
+			return
+		}
+		defer resp.Body.Close()
+
+		// Check status code
+		if resp.StatusCode != http.StatusOK {
+			bodyBytes, _ := io.ReadAll(resp.Body)
+			receiptScan.Status = "Failed"
+			receiptScan.OcrResults = fmt.Sprintf("AI model error: %s - %s", resp.Status, string(bodyBytes))
+			_ = s.foodRepository.UpdateReceiptScan(context.Background(), receiptScan)
+			return
+		}
+
+		// Parse response from AI model
+		var aiResponse struct {
+			Success bool `json:"success"`
+			Items   []struct {
+				Name        string `json:"name"`
+				Quantity    int    `json:"quantity"`
+				UnitMeasure string `json:"unit_measure"`
+				ExpiryDate  string `json:"expiry_date"`
+				IsPackaged  bool   `json:"is_packaged"`
+			} `json:"items"`
+		}
+
+		if err := json.NewDecoder(resp.Body).Decode(&aiResponse); err != nil {
+			receiptScan.Status = "Failed"
+			receiptScan.OcrResults = fmt.Sprintf("Error parsing AI response: %s", err.Error())
+			_ = s.foodRepository.UpdateReceiptScan(context.Background(), receiptScan)
+			return
+		}
+
+		if !aiResponse.Success || len(aiResponse.Items) == 0 {
+			receiptScan.Status = "Failed"
+			receiptScan.OcrResults = "AI model couldn't extract any items from receipt"
+			_ = s.foodRepository.UpdateReceiptScan(context.Background(), receiptScan)
+			return
+		}
+
+		// Save OCR results as JSON string
+		resultsJSON, _ := json.Marshal(aiResponse.Items)
+		receiptScan.Status = "Processed"
+		receiptScan.OcrResults = string(resultsJSON)
+
+		// Update receipt scan status and results
+		if err := s.foodRepository.UpdateReceiptScan(context.Background(), receiptScan); err != nil {
+			log.Printf("Error updating receipt scan: %v", err)
+			return
+		}
 	}()
 
 	return domain.UploadReceiptResponse{
@@ -329,6 +568,7 @@ func (s *foodService) SaveScannedItems(ctx context.Context, req domain.SaveScann
 			UserID:        userUUID,
 			Name:          item.Name,
 			Quantity:      item.Quantity,
+			UnitMeasure:   item.UnitMeasure,
 			ExpiryDate:    expiryDate,
 			IsPackaged:    item.IsPackaged,
 			Status:        status,
@@ -339,6 +579,12 @@ func (s *foodService) SaveScannedItems(ctx context.Context, req domain.SaveScann
 		if err := s.foodRepository.AddFoodItem(ctx, foodItem); err != nil {
 			return err
 		}
+	}
+
+	// Update receipt scan status to completed
+	scan.Status = "Completed"
+	if err := s.foodRepository.UpdateReceiptScan(ctx, scan); err != nil {
+		return err
 	}
 
 	return nil
@@ -379,28 +625,6 @@ func (s *foodService) GetDashboardStats(ctx context.Context, userID string) (dom
 	}, nil
 }
 
-// Mock implementation for OCR service
-func (s *foodService) ProcessReceiptOCR(receiptURL string) (map[string]interface{}, error) {
-	// In a real implementation, this would call an OCR service
-	// For now, just return a mock result
-	return map[string]interface{}{
-		"items": []map[string]interface{}{
-			{
-				"name":     "Milk",
-				"quantity": 1,
-				"price":    15000,
-			},
-			{
-				"name":     "Bread",
-				"quantity": 2,
-				"price":    12000,
-			},
-		},
-		"total": 39000,
-	}, nil
-}
-
-// Helper function to determine food status based on expiry date
 func determineStatus(expiryDate time.Time) string {
 	now := time.Now()
 
@@ -415,32 +639,4 @@ func determineStatus(expiryDate time.Time) string {
 	}
 
 	return "Safe"
-}
-
-// Helper function to autocomplete expiry date for fresh produce
-func estimateExpiryDate(productName string) time.Time {
-	// This would use a database or mapping of common fresh produce and their shelf life
-	// For simplicity, we're using a basic approach here
-	now := time.Now()
-
-	// Default is 7 days
-	shelfLife := 7
-
-	// Sample estimations for common items
-	switch productName {
-	case "Spinach", "Lettuce", "Leafy Greens":
-		shelfLife = 3
-	case "Tomato", "Bell Pepper":
-		shelfLife = 5
-	case "Apple", "Orange":
-		shelfLife = 14
-	case "Banana":
-		shelfLife = 5
-	case "Broccoli", "Cauliflower":
-		shelfLife = 7
-	case "Carrot", "Potato":
-		shelfLife = 21
-	}
-
-	return now.AddDate(0, 0, shelfLife)
 }
