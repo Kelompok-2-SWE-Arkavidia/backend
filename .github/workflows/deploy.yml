@@ -14,9 +14,6 @@ jobs:
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
       - name: Deploy to Server
         uses: appleboy/ssh-action@master
         with:
@@ -24,42 +21,69 @@ jobs:
           username: ${{ secrets.SERVER_USERNAME }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            # Navigate to project directory
             cd /path/to/your/project
-            
-            # Pull latest code
-            git pull origin main
-            
-            # Set environment variables for Docker Compose
-            export DOCKER_USERNAME=${{ secrets.DOCKER_USERNAME }}
-            export DB_USER=${{ secrets.DB_USER }}
-            export DB_PASSWORD=${{ secrets.DB_PASSWORD }}
-            export DB_NAME=${{ secrets.DB_NAME }}
-            export JWT_SECRET=${{ secrets.JWT_SECRET }}
-            export AES_KEY=${{ secrets.AES_KEY }}
-            export APP_URL=${{ secrets.APP_URL }}
-            export SMTP_HOST=${{ secrets.SMTP_HOST }}
-            export SMTP_PORT=${{ secrets.SMTP_PORT }}
-            export SMTP_SENDER_NAME="${{ secrets.SMTP_SENDER_NAME }}"
-            export SMTP_AUTH_EMAIL=${{ secrets.SMTP_AUTH_EMAIL }}
-            export SMTP_AUTH_PASSWORD=${{ secrets.SMTP_AUTH_PASSWORD }}
-            export CLIENT_KEY=${{ secrets.CLIENT_KEY }}
-            export SERVER_KEY=${{ secrets.SERVER_KEY }}
-            export IS_PROD=${{ secrets.IS_PROD }}
-            export AWS_S3_BUCKET=${{ secrets.AWS_S3_BUCKET }}
-            export AWS_S3_REGION=${{ secrets.AWS_S3_REGION }}
-            export AWS_ACCESS_KEY=${{ secrets.AWS_ACCESS_KEY }}
-            export AWS_SECRET_KEY=${{ secrets.AWS_SECRET_KEY }}
-            export AI_MODEL_URL=${{ secrets.AI_MODEL_URL }}
-            export GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}
-            export GEMINI_MODEL=${{ secrets.GEMINI_MODEL }}
             
             # Pull latest Docker image
             docker pull ${{ secrets.DOCKER_USERNAME }}/go-starter:latest
             
-            # Restart services with new image
+            cat > config.yaml << EOF
+            # Database configuration
+            DB_USER: ${{ secrets.DB_USER }}
+            DB_NAME: ${{ secrets.DB_NAME }}
+            DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+            DB_PORT: ${{ secrets.DB_PORT }}
+            DB_HOST: ${{ secrets.DB_HOST }}
+
+            # JWT and AES Keys
+            JWT_SECRET: ${{ secrets.JWT_SECRET }}
+            AES_KEY: ${{ secrets.AES_KEY }}
+
+            # Mailing configuration
+            APP_URL: ${{ secrets.APP_URL }}
+            SMTP_HOST: ${{ secrets.SMTP_HOST }}
+            SMTP_PORT: ${{ secrets.SMTP_PORT }}
+            SMTP_SENDER_NAME: "${{ secrets.SMTP_SENDER_NAME }}"
+            SMTP_AUTH_EMAIL: ${{ secrets.SMTP_AUTH_EMAIL }}
+            SMTP_AUTH_PASSWORD: ${{ secrets.SMTP_AUTH_PASSWORD }}
+
+            # Midtrans configuration
+            CLIENT_KEY: "${{ secrets.CLIENT_KEY }}"
+            SERVER_KEY: "${{ secrets.SERVER_KEY }}"
+            IsProd: ${{ secrets.IS_PROD }}
+
+            # AWS S3 configuration
+            AWS_S3_BUCKET: ${{ secrets.AWS_S3_BUCKET }}
+            AWS_S3_REGION: ${{ secrets.AWS_S3_REGION }}
+            AWS_ACCESS_KEY: ${{ secrets.AWS_ACCESS_KEY }}
+            AWS_SECRET_KEY: ${{ secrets.AWS_SECRET_KEY }}
+
+            # AI Model Service
+            AI_MODEL_URL: ${{ secrets.AI_MODEL_URL }}
+
+            # GEMINI
+            GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+            GEMINI_MODEL: ${{ secrets.GEMINI_MODEL }}
+            EOF
+            
             docker-compose -f docker-compose.prod.yml down
             docker-compose -f docker-compose.prod.yml up -d
-            
-            # Run database migrations
-            docker-compose -f docker-compose.prod.yml exec -T app /app/db-cli -migrate
+  script: |
+    cd /path/to/your/project
+
+    # Export variabel lingkungan untuk docker-compose
+    export DOCKER_USERNAME=${{ secrets.DOCKER_USERNAME }}
+    export DB_USER=${{ secrets.DB_USER }}
+    export DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+    export DB_NAME=${{ secrets.DB_NAME }}
+
+    # Pull latest Docker image
+    docker pull ${{ secrets.DOCKER_USERNAME }}/go-starter:latest
+
+    # Buat config.yaml
+    cat > config.yaml << EOF
+    ...
+    EOF
+
+    # Restart services
+    docker-compose -f docker-compose.prod.yml down
+    docker-compose -f docker-compose.prod.yml up -d

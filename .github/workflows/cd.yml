@@ -13,6 +13,10 @@ jobs:
       - name: Check out code
         uses: actions/checkout@v4
 
+      - name: Create config.yaml
+        run: |
+          cp config.yaml.example config.yaml
+
       - name: Set up Go
         uses: actions/setup-go@v4
         with:
