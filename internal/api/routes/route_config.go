@@ -77,6 +77,7 @@ func (c *Config) FoodItems() {
 	foodItems.Post("/receipt-scan", c.FoodHandler.UploadReceipt)    // Upload receipt for OCR
 	foodItems.Post("/save-scanned", c.FoodHandler.SaveScannedItems) // Save items from receipt scan
 	foodItems.Post("/damaged", c.FoodHandler.MarkAsDamaged)         // Mark food item as damaged
+	foodItems.Post("/detect-age", c.FoodHandler.DetectFoodAge)      // Detect food age from image
 
 	// Dashboard statistics
 	foodItems.Get("/dashboard", c.FoodHandler.GetDashboardStats) // Get dashboard statistics

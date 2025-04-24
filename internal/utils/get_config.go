@@ -39,6 +39,7 @@ type Config struct {
 
 	// Gemini API configuration
 	GeminiAPIKey string `yaml:"GEMINI_API_KEY"`
+	GeminiModel  string `yaml:"GEMINI_MODEL"`
 
 	// AI Model Service
 	AIModelURL string `yaml:"AI_MODEL_URL"`
@@ -127,6 +128,8 @@ func GetConfig(key string) string {
 		return config.AWSSecretKey
 	case "GEMINI_API_KEY":
 		return config.GeminiAPIKey
+	case "GEMINI_MODEL":
+		return config.GeminiModel
 	case "AI_MODEL_URL":
 		return config.AIModelURL
 	default:

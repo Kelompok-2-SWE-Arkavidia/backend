@@ -22,6 +22,7 @@ type (
 		SaveScannedItems(c *fiber.Ctx) error
 		MarkAsDamaged(c *fiber.Ctx) error
 		GetDashboardStats(c *fiber.Ctx) error
+		DetectFoodAge(c *fiber.Ctx) error
 	}
 
 	foodHandler struct {
@@ -231,4 +232,18 @@ func (h *foodHandler) GetDashboardStats(c *fiber.Ctx) error {
 	}
 
 	return presenters.SuccessResponse(c, stats, fiber.StatusOK, domain.MessageSuccessGetDashboardStats)
+}
+
+func (h *foodHandler) DetectFoodAge(c *fiber.Ctx) error {
+	file, err := c.FormFile("image")
+	if err != nil {
+		return presenters.ErrorResponse(c, fiber.StatusBadRequest, domain.MessageFailedBodyRequest, err)
+	}
+
+	geminiResponse, err := h.foodService.DetectFoodAge(c.Context(), file)
+	if err != nil {
+		return presenters.ErrorResponse(c, fiber.StatusBadRequest, domain.MessageFailedDetectFoodAge, err)
+	}
+
+	return presenters.SuccessResponse(c, geminiResponse, fiber.StatusOK, "Food age detected successfully")
 }
