@@ -25,6 +25,7 @@ jobs:
             
             docker pull ${{ secrets.DOCKER_USERNAME }}/go-starter:latest
             
+            # Buat config.yaml untuk aplikasi
             cat > config.yaml << EOF
             # Database configuration
             DB_USER: ${{ secrets.DB_USER }}
@@ -64,6 +65,7 @@ jobs:
             GEMINI_MODEL: ${{ secrets.GEMINI_MODEL }}
             EOF
             
+            # Buat docker-compose.yml dengan nilai yang sudah dimasukkan
             cat > docker-compose.prod.yml << EOF
             version: '3.8'
 
