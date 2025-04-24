@@ -67,23 +67,3 @@ jobs:
             
             docker-compose -f docker-compose.prod.yml down
             docker-compose -f docker-compose.prod.yml up -d
-  script: |
-    cd /path/to/your/project
-
-    # Export variabel lingkungan untuk docker-compose
-    export DOCKER_USERNAME=${{ secrets.DOCKER_USERNAME }}
-    export DB_USER=${{ secrets.DB_USER }}
-    export DB_PASSWORD=${{ secrets.DB_PASSWORD }}
-    export DB_NAME=${{ secrets.DB_NAME }}
-
-    # Pull latest Docker image
-    docker pull ${{ secrets.DOCKER_USERNAME }}/go-starter:latest
-
-    # Buat config.yaml
-    cat > config.yaml << EOF
-    ...
-    EOF
-
-    # Restart services
-    docker-compose -f docker-compose.prod.yml down
-    docker-compose -f docker-compose.prod.yml up -d
