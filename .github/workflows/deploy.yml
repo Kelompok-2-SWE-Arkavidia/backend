@@ -23,7 +23,6 @@ jobs:
           script: |
             cd ~/backend
             
-            # Pull latest Docker image
             docker pull ${{ secrets.DOCKER_USERNAME }}/go-starter:latest
             
             # Buat config.yaml untuk aplikasi
