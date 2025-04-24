@@ -279,13 +279,10 @@ func (s *foodService) DetectFoodAge(ctx context.Context, imageFile *multipart.Fi
 		return domain.GeminiResponse{}, fmt.Errorf("GEMINI_MODEL environment variable not set")
 	}
 
-	// Tentukan MIME type yang benar
 	mimeType := imageFile.Header.Get("Content-Type")
 	if mimeType == "" {
-		// Default ke image/jpeg jika Content-Type tidak ada
 		mimeType = "image/jpeg"
 
-		// Atau coba tentukan berdasarkan ekstensi file
 		filename := imageFile.Filename
 		ext := strings.ToLower(filepath.Ext(filename))
 		switch ext {
@@ -302,7 +299,6 @@ func (s *foodService) DetectFoodAge(ctx context.Context, imageFile *multipart.Fi
 
 	geminiURL := fmt.Sprintf("https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s", geminiModel, geminiAPIKey)
 
-	// Prompt yang lebih spesifik dan meminta format JSON yang ketat
 	requestBody := map[string]interface{}{
 		"contents": []map[string]interface{}{
 			{
@@ -369,17 +365,12 @@ func (s *foodService) DetectFoodAge(ctx context.Context, imageFile *multipart.Fi
 
 	responseText := geminiResp.Candidates[0].Content.Parts[0].Text
 
-	// Log response untuk debugging
-	fmt.Println("Gemini raw response:", responseText)
-
-	// Ekstrak JSON dari teks respons (jika dalam markdown atau komentar)
 	jsonPattern := regexp.MustCompile(`(?s)\{.*\}`)
 	matches := jsonPattern.FindString(responseText)
 	if matches != "" {
 		responseText = matches
 	}
 
-	// Pembersihan tambahan untuk format JSON yang tidak standar
 	responseText = strings.TrimSpace(responseText)
 	if strings.HasPrefix(responseText, "```json") {
 		responseText = strings.TrimPrefix(responseText, "```json")
@@ -390,10 +381,8 @@ func (s *foodService) DetectFoodAge(ctx context.Context, imageFile *multipart.Fi
 	}
 	responseText = strings.TrimSpace(responseText)
 
-	// Coba parsing ke struct yang diharapkan
 	var foodAnalysis domain.GeminiResponse
 	if err := json.Unmarshal([]byte(responseText), &foodAnalysis); err != nil {
-		// Jika gagal, coba struktur alternatif
 		type AlternativeResponse struct {
 			FoodType         string  `json:"foodType"`
 			EstimatedAgeDays int     `json:"estimatedAgeDays"`
@@ -406,14 +395,11 @@ func (s *foodService) DetectFoodAge(ctx context.Context, imageFile *multipart.Fi
 			return domain.GeminiResponse{}, fmt.Errorf("failed to parse Gemini response: %v - Raw response: %s", err, responseText)
 		}
 
-		// Parse tanggal kedaluwarsa
 		expiryDate, dateErr := time.Parse("2006-01-02", altResponse.ExpiryDate)
 		if dateErr != nil {
-			// Jika format tanggal tidak sesuai, gunakan estimasi hari
 			expiryDate = time.Now().AddDate(0, 0, altResponse.EstimatedAgeDays)
 		}
 
-		// Konversi ke domain.GeminiResponse
 		foodAnalysis = domain.GeminiResponse{
 			FoodType:        altResponse.FoodType,
 			EstimatedAge:    altResponse.EstimatedAgeDays,
@@ -422,7 +408,6 @@ func (s *foodService) DetectFoodAge(ctx context.Context, imageFile *multipart.Fi
 		}
 	}
 
-	// Pastikan nilai-nilai masuk akal
 	if foodAnalysis.FoodType == "" {
 		foodAnalysis.FoodType = "Unknown Food"
 	}
@@ -432,10 +417,9 @@ func (s *foodService) DetectFoodAge(ctx context.Context, imageFile *multipart.Fi
 	}
 
 	if foodAnalysis.Confidence < 0 || foodAnalysis.Confidence > 1 {
-		foodAnalysis.Confidence = 0.5 // default middle value
+		foodAnalysis.Confidence = 0.5
 	}
 
-	// Jika tanggal kedaluwarsa nol, buat perkiraan berdasarkan umur
 	zeroTime := time.Time{}
 	if foodAnalysis.EstimatedExpiry == zeroTime {
 		foodAnalysis.EstimatedExpiry = time.Now().AddDate(0, 0, foodAnalysis.EstimatedAge)

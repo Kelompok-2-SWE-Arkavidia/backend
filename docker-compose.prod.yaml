@@ -1,0 +1,67 @@
+version: '3.8'
+
+services:
+  app:
+    image: ${DOCKER_USERNAME}/go-starter:latest
+    container_name: go-starter-app
+    restart: always
+    volumes:
+      - app_logs:/app/logs
+    depends_on:
+      - db
+    ports:
+      - "3000:3000"
+    environment:
+      - DB_HOST=db
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=${DB_NAME}
+      - DB_PORT=5432
+      - JWT_SECRET=${JWT_SECRET}
+      - AES_KEY=${AES_KEY}
+      - APP_URL=${APP_URL}
+      - SMTP_HOST=${SMTP_HOST}
+      - SMTP_PORT=${SMTP_PORT}
+      - SMTP_SENDER_NAME=${SMTP_SENDER_NAME}
+      - SMTP_AUTH_EMAIL=${SMTP_AUTH_EMAIL}
+      - SMTP_AUTH_PASSWORD=${SMTP_AUTH_PASSWORD}
+      - CLIENT_KEY=${CLIENT_KEY}
+      - SERVER_KEY=${SERVER_KEY}
+      - IsProd=${IS_PROD}
+      - AWS_S3_BUCKET=${AWS_S3_BUCKET}
+      - AWS_S3_REGION=${AWS_S3_REGION}
+      - AWS_ACCESS_KEY=${AWS_ACCESS_KEY}
+      - AWS_SECRET_KEY=${AWS_SECRET_KEY}
+      - AI_MODEL_URL=${AI_MODEL_URL}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - GEMINI_MODEL=${GEMINI_MODEL}
+    networks:
+      - backend
+
+  db:
+    image: postgres:alpine
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD", "pg_isready", "-U", "postgres" ]
+      interval: 10s
+      retries: 5
+      start_period: 10s
+      timeout: 5s
+    networks:
+      - backend
+
+networks:
+  backend:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  app_logs:

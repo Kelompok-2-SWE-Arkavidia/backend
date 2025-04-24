@@ -1,0 +1,82 @@
+name: Go CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.23'
+
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: go mod download
+
+      - name: Create config.yaml for testing
+        run: |
+          cat > config.yaml << EOF
+          # Database configuration
+          DB_USER: postgres
+          DB_NAME: test_db
+          DB_PASSWORD: postgres
+          DB_PORT: 5432
+          DB_HOST: localhost
+          
+          # JWT and AES Keys
+          JWT_SECRET: test_secret
+          AES_KEY: 123456789012345678901234567890ab
+          
+          # Mailing configuration
+          APP_URL: "http://localhost:3000"
+          SMTP_HOST: "smtp.example.com"
+          SMTP_PORT: "587"
+          SMTP_SENDER_NAME: "Test Sender"
+          SMTP_AUTH_EMAIL: "test@example.com"
+          SMTP_AUTH_PASSWORD: "test_password"
+          
+          # Midtrans configuration
+          CLIENT_KEY: "test_client_key"
+          SERVER_KEY: "test_server_key"
+          IsProd: false
+          
+          # AWS S3 configuration
+          AWS_S3_BUCKET: "test-bucket"
+          AWS_S3_REGION: "us-east-1"
+          AWS_ACCESS_KEY: "test_access_key"
+          AWS_SECRET_KEY: "test_secret_key"
+          
+          # AI Model Service
+          AI_MODEL_URL: "http://localhost:8000"
+          
+          # GEMINI
+          GEMINI_API_KEY: "test_gemini_key"
+          GEMINI_MODEL: "test_model"
+          EOF
+
+      - name: Run tests
+        run: go test ./... -v
