@@ -64,6 +64,7 @@ func (c *Config) AuthRoute() {
 
 func (c *Config) FoodItems() {
 	foodItems := c.App.Group("/api/v1/food-items", c.Middleware.AuthMiddleware(c.JWTService))
+	foodItems.Get("/dashboard", c.FoodHandler.GetDashboardStats)
 
 	// Basic CRUD operations
 	foodItems.Post("", c.FoodHandler.AddFoodItem)           // Add food item manually
@@ -80,5 +81,5 @@ func (c *Config) FoodItems() {
 	foodItems.Post("/detect-age", c.FoodHandler.DetectFoodAge)      // Detect food age from image
 
 	// Dashboard statistics
-	foodItems.Get("/dashboard", c.FoodHandler.GetDashboardStats) // Get dashboard statistics
+	// Get dashboard statistics
 }
