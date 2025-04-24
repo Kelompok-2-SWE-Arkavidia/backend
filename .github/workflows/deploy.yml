@@ -21,7 +21,7 @@ jobs:
           username: ${{ secrets.SERVER_USERNAME }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            cd /path/to/your/project
+            cd ~/backend
             
             # Pull latest Docker image
             docker pull ${{ secrets.DOCKER_USERNAME }}/go-starter:latest
@@ -64,6 +64,8 @@ jobs:
             GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
             GEMINI_MODEL: ${{ secrets.GEMINI_MODEL }}
             EOF
+            
+            git pull origin main
             
             docker-compose -f docker-compose.prod.yml down
             docker-compose -f docker-compose.prod.yml up -d
