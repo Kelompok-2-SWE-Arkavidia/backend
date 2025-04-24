@@ -36,6 +36,13 @@ type Config struct {
 	AWSS3Region  string `yaml:"AWS_S3_REGION"`
 	AWSAccessKey string `yaml:"AWS_ACCESS_KEY"`
 	AWSSecretKey string `yaml:"AWS_SECRET_KEY"`
+
+	// Gemini API configuration
+	GeminiAPIKey string `yaml:"GEMINI_API_KEY"`
+	GeminiModel  string `yaml:"GEMINI_MODEL"`
+
+	// AI Model Service
+	AIModelURL string `yaml:"AI_MODEL_URL"`
 }
 
 var config Config
@@ -52,6 +59,26 @@ func LoadConfig() {
 		log.Printf("Error parsing YAML file: %s\n", err)
 		return
 	}
+
+	// Set environment variables for keys that should be accessible via os.Getenv
+	os.Setenv("JWT_SECRET", config.JWTSecret)
+	os.Setenv("AES_KEY", config.AESKey)
+	os.Setenv("SERVER_KEY", config.ServerKey)
+	os.Setenv("CLIENT_KEY", config.ClientKey)
+	os.Setenv("IS_PROD", getBoolString(config.IsProd))
+	os.Setenv("AWS_S3_BUCKET", config.AWSS3Bucket)
+	os.Setenv("AWS_S3_REGION", config.AWSS3Region)
+	os.Setenv("AWS_ACCESS_KEY", config.AWSAccessKey)
+	os.Setenv("AWS_SECRET_KEY", config.AWSSecretKey)
+	os.Setenv("GEMINI_API_KEY", config.GeminiAPIKey)
+	os.Setenv("AI_MODEL_URL", config.AIModelURL)
+}
+
+func getBoolString(b bool) string {
+	if b {
+		return "true"
+	}
+	return "false"
 }
 
 func GetConfig(key string) string {
@@ -99,6 +126,12 @@ func GetConfig(key string) string {
 		return config.AWSAccessKey
 	case "AWS_SECRET_KEY":
 		return config.AWSSecretKey
+	case "GEMINI_API_KEY":
+		return config.GeminiAPIKey
+	case "GEMINI_MODEL":
+		return config.GeminiModel
+	case "AI_MODEL_URL":
+		return config.AIModelURL
 	default:
 		return ""
 	}

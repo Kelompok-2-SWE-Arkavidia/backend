@@ -10,6 +10,7 @@ import (
 type Config struct {
 	App             *fiber.App
 	UserHandler     handlers.UserHandler
+	FoodHandler     handlers.FoodHandler
 	MidtransHandler handlers.MidtransHandler
 	Middleware      middleware.Middleware
 	JWTService      jwt.JWTService
@@ -18,6 +19,7 @@ type Config struct {
 func (c *Config) Setup() {
 	c.App.Use(c.Middleware.CORSMiddleware())
 	c.User()
+	c.FoodItems()
 	c.GuestRoute()
 	c.AuthRoute()
 }
@@ -58,4 +60,25 @@ func (c *Config) AuthRoute() {
 			"role":    role,
 		})
 	})
+}
+
+func (c *Config) FoodItems() {
+	foodItems := c.App.Group("/api/v1/food-items", c.Middleware.AuthMiddleware(c.JWTService))
+
+	// Basic CRUD operations
+	foodItems.Post("", c.FoodHandler.AddFoodItem)           // Add food item manually
+	foodItems.Get("", c.FoodHandler.GetFoodItems)           // Get all food items with filtering
+	foodItems.Get("/:id", c.FoodHandler.GetFoodItemDetails) // Get food item details
+	foodItems.Put("/:id", c.FoodHandler.UpdateFoodItem)     // Update food item
+	foodItems.Delete("/:id", c.FoodHandler.DeleteFoodItem)  // Delete food item
+
+	// Special operations
+	foodItems.Post("/image", c.FoodHandler.UploadFoodImage)         // Upload food image
+	foodItems.Post("/receipt-scan", c.FoodHandler.UploadReceipt)    // Upload receipt for OCR
+	foodItems.Post("/save-scanned", c.FoodHandler.SaveScannedItems) // Save items from receipt scan
+	foodItems.Post("/damaged", c.FoodHandler.MarkAsDamaged)         // Mark food item as damaged
+	foodItems.Post("/detect-age", c.FoodHandler.DetectFoodAge)      // Detect food age from image
+
+	// Dashboard statistics
+	foodItems.Get("/dashboard", c.FoodHandler.GetDashboardStats) // Get dashboard statistics
 }

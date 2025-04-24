@@ -6,6 +6,7 @@ import (
 	"Go-Starter-Template/internal/middleware"
 	"Go-Starter-Template/internal/utils"
 	"Go-Starter-Template/internal/utils/storage"
+	"Go-Starter-Template/pkg/food"
 	"Go-Starter-Template/pkg/jwt"
 	"Go-Starter-Template/pkg/midtrans"
 	"Go-Starter-Template/pkg/user"
@@ -57,6 +58,7 @@ func NewApp(db *gorm.DB) (*fiber.App, error) {
 	// Repository
 	userRepository := user.NewUserRepository(db)
 	midtransRepository := midtrans.NewMidtransRepository(db)
+	foodRepository := food.NewFoodRepository(db)
 
 	// Service
 	jwtService := jwt.NewJWTService()
@@ -65,16 +67,19 @@ func NewApp(db *gorm.DB) (*fiber.App, error) {
 		midtransRepository,
 		userRepository,
 	)
+	foodService := food.NewFoodService(foodRepository, s3)
 
 	// Handler
 	userHandler := handlers.NewUserHandler(userService, validator, jwtService)
 	midtransHandler := handlers.NewMidtransHandler(midtransService, validator)
+	foodHandler := handlers.NewFoodHandler(foodService, validator)
 
 	// routes
 	routesConfig := routes.Config{
 		App:             app,
 		UserHandler:     userHandler,
 		MidtransHandler: midtransHandler,
+		FoodHandler:     foodHandler,
 		Middleware:      middlewares,
 		JWTService:      jwtService,
 	}
