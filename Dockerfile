@@ -19,7 +19,6 @@ WORKDIR /app
 
 COPY --from=builder /app/main .
 COPY --from=builder /app/db-cli .
-COPY --from=builder /app/config.yaml .
 COPY --from=builder /app/cmd/database/seeder/data /app/cmd/database/seeder/data
 
 CMD ["/bin/sh", "-c", "/app/db-cli -migrate -seed && /app/main"]
