@@ -19,6 +19,7 @@ type (
 		GetFoodItemDetails(c *fiber.Ctx) error
 		UploadFoodImage(c *fiber.Ctx) error
 		UploadReceipt(c *fiber.Ctx) error
+		GetReceiptScanResult(c *fiber.Ctx) error
 		SaveScannedItems(c *fiber.Ctx) error
 		MarkAsDamaged(c *fiber.Ctx) error
 		GetDashboardStats(c *fiber.Ctx) error
@@ -246,4 +247,20 @@ func (h *foodHandler) DetectFoodAge(c *fiber.Ctx) error {
 	}
 
 	return presenters.SuccessResponse(c, geminiResponse, fiber.StatusOK, "Food age detected successfully")
+}
+
+func (h *foodHandler) GetReceiptScanResult(c *fiber.Ctx) error {
+	userID := c.Locals("user_id").(string)
+	scanID := c.Params("id")
+
+	if scanID == "" {
+		return presenters.ErrorResponse(c, fiber.StatusBadRequest, "Invalid scan ID", errors.New("scan ID is required"))
+	}
+
+	scan, err := h.foodService.GetReceiptScanResult(c.Context(), scanID, userID)
+	if err != nil {
+		return presenters.ErrorResponse(c, fiber.StatusBadRequest, "Failed to get receipt scan result", err)
+	}
+
+	return presenters.SuccessResponse(c, scan, fiber.StatusOK, "Receipt scan result retrieved successfully")
 }

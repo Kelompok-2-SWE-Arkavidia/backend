@@ -67,19 +67,17 @@ func (c *Config) FoodItems() {
 	foodItems.Get("/dashboard", c.FoodHandler.GetDashboardStats)
 
 	// Basic CRUD operations
-	foodItems.Post("", c.FoodHandler.AddFoodItem)           // Add food item manually
-	foodItems.Get("", c.FoodHandler.GetFoodItems)           // Get all food items with filtering
-	foodItems.Get("/:id", c.FoodHandler.GetFoodItemDetails) // Get food item details
-	foodItems.Put("/:id", c.FoodHandler.UpdateFoodItem)     // Update food item
-	foodItems.Delete("/:id", c.FoodHandler.DeleteFoodItem)  // Delete food item
+	foodItems.Post("", c.FoodHandler.AddFoodItem)
+	foodItems.Get("", c.FoodHandler.GetFoodItems)
+	foodItems.Get("/:id", c.FoodHandler.GetFoodItemDetails)
+	foodItems.Put("/:id", c.FoodHandler.UpdateFoodItem)
+	foodItems.Delete("/:id", c.FoodHandler.DeleteFoodItem)
 
 	// Special operations
-	foodItems.Post("/image", c.FoodHandler.UploadFoodImage)         // Upload food image
-	foodItems.Post("/receipt-scan", c.FoodHandler.UploadReceipt)    // Upload receipt for OCR
-	foodItems.Post("/save-scanned", c.FoodHandler.SaveScannedItems) // Save items from receipt scan
-	foodItems.Post("/damaged", c.FoodHandler.MarkAsDamaged)         // Mark food item as damaged
-	foodItems.Post("/detect-age", c.FoodHandler.DetectFoodAge)      // Detect food age from image
-
-	// Dashboard statistics
-	// Get dashboard statistics
+	foodItems.Post("/image", c.FoodHandler.UploadFoodImage)
+	foodItems.Post("/receipt-scan", c.FoodHandler.UploadReceipt)
+	foodItems.Get("/receipt-scan/:id", c.FoodHandler.GetReceiptScanResult)
+	foodItems.Post("/save-scanned", c.FoodHandler.SaveScannedItems)
+	foodItems.Post("/damaged", c.FoodHandler.MarkAsDamaged)
+	foodItems.Post("/detect-age", c.FoodHandler.DetectFoodAge)
 }
