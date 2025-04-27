@@ -80,16 +80,28 @@ type (
 	}
 
 	ScannedItemRequest struct {
-		Name        string `json:"name" validate:"required"`
-		Quantity    int    `json:"quantity" validate:"required,min=1"`
-		UnitMeasure string `json:"unit_measure" validate:"required"`
-		ExpiryDate  string `json:"expiry_date" validate:"required"`
-		IsPackaged  bool   `json:"is_packaged"`
+		Name         string  `json:"name" validate:"required"`
+		Quantity     int     `json:"quantity" validate:"required,min=1"`
+		UnitMeasure  string  `json:"unit_measure" validate:"required"`
+		ExpiryDate   string  `json:"expiry_date" validate:"required"`
+		IsPackaged   bool    `json:"is_packaged"`
+		Price        string  `json:"price,omitempty"`
+		EstimatedAge int     `json:"estimated_age,omitempty"`
+		Confidence   float64 `json:"confidence,omitempty"`
 	}
 
 	SaveScannedItemsRequest struct {
 		ScanID string               `json:"scan_id" validate:"required,uuid"`
 		Items  []ScannedItemRequest `json:"items" validate:"required,dive"`
+	}
+
+	ReceiptScanDetailsResponse struct {
+		ID        string               `json:"id"`
+		ImageURL  string               `json:"image_url"`
+		Status    string               `json:"status"`
+		Items     []ScannedItemRequest `json:"items,omitempty"`
+		Error     string               `json:"error,omitempty"`
+		CreatedAt time.Time            `json:"created_at"`
 	}
 
 	FoodItemResponse struct {
@@ -124,5 +136,24 @@ type (
 		EstimatedAge    int       `json:"estimatedAgeDays"`
 		EstimatedExpiry time.Time `json:"-"` // Diisi secara manual dari expiryDate
 		Confidence      float64   `json:"confidenceScore"`
+	}
+
+	ReceiptScanResult struct {
+		ID        string                  `json:"id"`
+		ImageURL  string                  `json:"image_url"`
+		Status    string                  `json:"status"`
+		Items     []ReceiptScanResultItem `json:"items,omitempty"`
+		Error     string                  `json:"error,omitempty"`
+		CreatedAt time.Time               `json:"created_at"`
+	}
+
+	ReceiptScanResultItem struct {
+		Name         string  `json:"name"`
+		Price        string  `json:"price,omitempty"`
+		EstimatedAge int     `json:"estimated_age"`
+		ExpiryDate   string  `json:"expiry_date,omitempty"`
+		UnitMeasure  string  `json:"unit_measure,omitempty"`
+		IsPackaged   bool    `json:"is_packaged,omitempty"`
+		Confidence   float64 `json:"confidence,omitempty"`
 	}
 )
