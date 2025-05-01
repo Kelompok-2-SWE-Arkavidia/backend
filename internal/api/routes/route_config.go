@@ -11,7 +11,10 @@ type Config struct {
 	App             *fiber.App
 	UserHandler     handlers.UserHandler
 	FoodHandler     handlers.FoodHandler
+	RecipeHandler   handlers.RecipeHandler
+	CoinHandler     handlers.CoinHandler
 	MidtransHandler handlers.MidtransHandler
+	DonationHandler handlers.DonationHandler
 	Middleware      middleware.Middleware
 	JWTService      jwt.JWTService
 }
@@ -20,6 +23,9 @@ func (c *Config) Setup() {
 	c.App.Use(c.Middleware.CORSMiddleware())
 	c.User()
 	c.FoodItems()
+	c.Recipes()
+	c.Donations()
+	c.Coins()
 	c.GuestRoute()
 	c.AuthRoute()
 }
@@ -80,4 +86,39 @@ func (c *Config) FoodItems() {
 	foodItems.Post("/save-scanned", c.FoodHandler.SaveScannedItems)
 	foodItems.Post("/damaged", c.FoodHandler.MarkAsDamaged)
 	foodItems.Post("/detect-age", c.FoodHandler.DetectFoodAge)
+}
+
+func (c *Config) Recipes() {
+	recipes := c.App.Group("/api/v1/recipes", c.Middleware.AuthMiddleware(c.JWTService))
+
+	// Recipe recommendations
+	recipes.Get("/recommendations", c.RecipeHandler.GetRecipeRecommendations)
+	recipes.Get("/:id", c.RecipeHandler.GetRecipeDetail)
+	recipes.Post("/bookmark", c.RecipeHandler.BookmarkRecipe)
+	recipes.Delete("/bookmark", c.RecipeHandler.RemoveBookmark)
+	recipes.Get("/bookmarks", c.RecipeHandler.GetBookmarkedRecipes)
+	recipes.Post("/cooked", c.RecipeHandler.MarkAsCooked)
+	recipes.Get("/history", c.RecipeHandler.GetRecipeHistory)
+}
+
+func (c *Config) Donations() {
+	donations := c.App.Group("/api/v1/donations", c.Middleware.AuthMiddleware(c.JWTService))
+
+	donations.Get("/locations", c.DonationHandler.GetDonationLocations)
+	donations.Post("", c.DonationHandler.CreateDonation)
+	donations.Get("", c.DonationHandler.GetUserDonations)
+	donations.Get("/statistics", c.DonationHandler.GetDonationStatistics)
+	donations.Get("/expiring-suggestions", c.DonationHandler.GetExpiringFoodSuggestions)
+	donations.Get("/:id", c.DonationHandler.GetDonationByID)
+	donations.Post("/status", c.DonationHandler.UpdateDonationStatus)
+}
+
+func (c *Config) Coins() {
+	coins := c.App.Group("/api/v1/coins", c.Middleware.AuthMiddleware(c.JWTService))
+
+	coins.Get("/packages", c.CoinHandler.GetCoinPackages)
+	coins.Post("/buy", c.CoinHandler.BuyCoins)
+	coins.Post("/use", c.CoinHandler.UseCoins)
+	coins.Get("/balance", c.CoinHandler.GetUserCoins)
+	coins.Get("/history", c.CoinHandler.GetCoinTransactionHistory)
 }

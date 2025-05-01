@@ -6,9 +6,11 @@ import (
 	"Go-Starter-Template/internal/middleware"
 	"Go-Starter-Template/internal/utils"
 	"Go-Starter-Template/internal/utils/storage"
+	"Go-Starter-Template/pkg/donation"
 	"Go-Starter-Template/pkg/food"
 	"Go-Starter-Template/pkg/jwt"
 	"Go-Starter-Template/pkg/midtrans"
+	"Go-Starter-Template/pkg/recipe"
 	"Go-Starter-Template/pkg/user"
 	"os"
 	"time"
@@ -59,6 +61,8 @@ func NewApp(db *gorm.DB) (*fiber.App, error) {
 	userRepository := user.NewUserRepository(db)
 	midtransRepository := midtrans.NewMidtransRepository(db)
 	foodRepository := food.NewFoodRepository(db)
+	recipeRepository := recipe.NewRecipeRepository(db)
+	donationRepository := donation.NewDonationRepository(db)
 
 	// Service
 	jwtService := jwt.NewJWTService()
@@ -68,11 +72,15 @@ func NewApp(db *gorm.DB) (*fiber.App, error) {
 		userRepository,
 	)
 	foodService := food.NewFoodService(foodRepository, s3)
+	recipeService := recipe.NewRecipeService(recipeRepository, foodRepository)
+	donationService := donation.NewDonationService(donationRepository, foodRepository, s3)
 
 	// Handler
 	userHandler := handlers.NewUserHandler(userService, validator, jwtService)
 	midtransHandler := handlers.NewMidtransHandler(midtransService, validator)
 	foodHandler := handlers.NewFoodHandler(foodService, validator)
+	recipeHandler := handlers.NewRecipeHandler(recipeService, validator)
+	donationHandler := handlers.NewDonationHandler(donationService, validator)
 
 	// routes
 	routesConfig := routes.Config{
@@ -80,8 +88,10 @@ func NewApp(db *gorm.DB) (*fiber.App, error) {
 		UserHandler:     userHandler,
 		MidtransHandler: midtransHandler,
 		FoodHandler:     foodHandler,
+		RecipeHandler:   recipeHandler,
 		Middleware:      middlewares,
 		JWTService:      jwtService,
+		DonationHandler: donationHandler,
 	}
 	routesConfig.Setup()
 	return app, nil

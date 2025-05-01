@@ -134,7 +134,7 @@ type (
 	GeminiResponse struct {
 		FoodType        string    `json:"foodType"`
 		EstimatedAge    int       `json:"estimatedAgeDays"`
-		EstimatedExpiry time.Time `json:"-"` // Diisi secara manual dari expiryDate
+		EstimatedExpiry time.Time `json:"-"`
 		Confidence      float64   `json:"confidenceScore"`
 	}
 
