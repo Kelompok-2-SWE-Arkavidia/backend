@@ -429,197 +429,226 @@ func (s *foodService) DetectFoodAge(ctx context.Context, imageFile *multipart.Fi
 }
 
 func (s *foodService) UploadReceipt(ctx context.Context, req domain.UploadReceiptRequest, userID string) (domain.UploadReceiptResponse, error) {
-	userUUID, err := uuid.Parse(userID)
+	items, err := s.processReceiptWithGemini(ctx, req.ReceiptImage)
 	if err != nil {
-		return domain.UploadReceiptResponse{}, domain.ErrParseUUID
+		if strings.Contains(err.Error(), "failed to parse") && len(items) > 0 {
+			log.Printf("Warning: %v", err)
+		} else {
+			return domain.UploadReceiptResponse{}, fmt.Errorf("error processing receipt with Gemini: %w", err)
+		}
 	}
 
 	scanID := uuid.New()
-	fileName := fmt.Sprintf("receipt-%s", scanID.String())
-	objectKey, err := s.s3.UploadFile(fileName, req.ReceiptImage, "receipts", storage.AllowImage...)
-	if err != nil {
-		return domain.UploadReceiptResponse{}, err
-	}
-
-	imageURL := s.s3.GetPublicLinkKey(objectKey)
-
-	receiptScan := &entities.ReceiptScan{
-		ID:       scanID,
-		UserID:   userUUID,
-		ImageURL: imageURL,
-		Status:   "Pending",
-	}
-
-	if err := s.foodRepository.CreateReceiptScan(ctx, receiptScan); err != nil {
-		_ = s.s3.DeleteFile(objectKey)
-		return domain.UploadReceiptResponse{}, err
-	}
-
-	go func() {
-		aiModelURL := utils.GetConfig("AI_MODEL_URL")
-		if aiModelURL == "" {
-			receiptScan.Status = "Failed"
-			receiptScan.OcrResults = "Error: AI Model URL not configured"
-			_ = s.foodRepository.UpdateReceiptScan(context.Background(), receiptScan)
-			return
-		}
-
-		// Open the receipt image file
-		file, err := req.ReceiptImage.Open()
-		if err != nil {
-			receiptScan.Status = "Failed"
-			receiptScan.OcrResults = fmt.Sprintf("Error opening file: %s", err.Error())
-			_ = s.foodRepository.UpdateReceiptScan(context.Background(), receiptScan)
-			return
-		}
-		defer file.Close()
-
-		fileBytes, err := io.ReadAll(file)
-		if err != nil {
-			receiptScan.Status = "Failed"
-			receiptScan.OcrResults = fmt.Sprintf("Error reading file: %s", err.Error())
-			_ = s.foodRepository.UpdateReceiptScan(context.Background(), receiptScan)
-			return
-		}
-
-		// Create multipart form to send to OCR service
-		body := &bytes.Buffer{}
-		writer := multipart.NewWriter(body)
-
-		part, err := writer.CreateFormFile("image", req.ReceiptImage.Filename)
-		if err != nil {
-			receiptScan.Status = "Failed"
-			receiptScan.OcrResults = fmt.Sprintf("Error creating form file: %s", err.Error())
-			_ = s.foodRepository.UpdateReceiptScan(context.Background(), receiptScan)
-			return
-		}
-
-		if _, err = part.Write(fileBytes); err != nil {
-			receiptScan.Status = "Failed"
-			receiptScan.OcrResults = fmt.Sprintf("Error writing to form file: %s", err.Error())
-			_ = s.foodRepository.UpdateReceiptScan(context.Background(), receiptScan)
-			return
-		}
-
-		if err = writer.Close(); err != nil {
-			receiptScan.Status = "Failed"
-			receiptScan.OcrResults = fmt.Sprintf("Error closing writer: %s", err.Error())
-			_ = s.foodRepository.UpdateReceiptScan(context.Background(), receiptScan)
-			return
-		}
-
-		// Send request to OCR service
-		httpReq, err := http.NewRequest("POST", aiModelURL+"/api/predict", body)
-		if err != nil {
-			receiptScan.Status = "Failed"
-			receiptScan.OcrResults = fmt.Sprintf("Error creating request: %s", err.Error())
-			_ = s.foodRepository.UpdateReceiptScan(context.Background(), receiptScan)
-			return
-		}
-
-		httpReq.Header.Set("Content-Type", writer.FormDataContentType())
-
-		client := &http.Client{Timeout: 60 * time.Second}
-		resp, err := client.Do(httpReq)
-		if err != nil {
-			receiptScan.Status = "Failed"
-			receiptScan.OcrResults = fmt.Sprintf("Error sending request to AI model: %s", err.Error())
-			_ = s.foodRepository.UpdateReceiptScan(context.Background(), receiptScan)
-			return
-		}
-		defer resp.Body.Close()
-
-		if resp.StatusCode != http.StatusOK {
-			bodyBytes, _ := io.ReadAll(resp.Body)
-			receiptScan.Status = "Failed"
-			receiptScan.OcrResults = fmt.Sprintf("AI model error: %s - %s", resp.Status, string(bodyBytes))
-			_ = s.foodRepository.UpdateReceiptScan(context.Background(), receiptScan)
-			return
-		}
-
-		// Parse OCR response
-		var aiResponse struct {
-			Status      string `json:"status"`
-			ReceiptName string `json:"receipt_name"`
-			Predictions []struct {
-				Filename   string `json:"filename"`
-				SentenceID int    `json:"sentence_id"`
-				ITEM_NAME  string `json:"ITEM_NAME"`
-				PRICE      string `json:"PRICE,omitempty"`
-			} `json:"predictions"`
-		}
-
-		if err := json.NewDecoder(resp.Body).Decode(&aiResponse); err != nil {
-			receiptScan.Status = "Failed"
-			receiptScan.OcrResults = fmt.Sprintf("Error parsing AI response: %s", err.Error())
-			_ = s.foodRepository.UpdateReceiptScan(context.Background(), receiptScan)
-			return
-		}
-
-		if aiResponse.Status != "success" || len(aiResponse.Predictions) == 0 {
-			receiptScan.Status = "Failed"
-			receiptScan.OcrResults = "AI model couldn't extract any items from receipt"
-			_ = s.foodRepository.UpdateReceiptScan(context.Background(), receiptScan)
-			return
-		}
-
-		// Create a slice to hold the enhanced food items
-		enhancedItems := make([]map[string]interface{}, 0, len(aiResponse.Predictions))
-
-		// Process each food item with Gemini
-		for _, item := range aiResponse.Predictions {
-			if item.ITEM_NAME == "" {
-				continue // Skip items with no name
-			}
-
-			// Create a base food item
-			foodItem := map[string]interface{}{
-				"name":          item.ITEM_NAME,
-				"price":         item.PRICE,
-				"estimated_age": 0,
-				"unit_measure":  "pcs", // Default
-				"is_packaged":   true,  // Default
-			}
-
-			// Call Gemini to get food age estimation
-			geminiResponse, err := s.getFoodAgeEstimationFromGemini(context.Background(), item.ITEM_NAME)
-			if err == nil {
-				// Update with Gemini information
-				foodItem["name"] = geminiResponse.FoodType
-				foodItem["estimated_age"] = geminiResponse.EstimatedAge
-				foodItem["expiry_date"] = geminiResponse.EstimatedExpiry.Format("2006-01-02")
-				foodItem["confidence"] = geminiResponse.Confidence
-
-				// Set default expiry date if not provided
-				if _, ok := foodItem["expiry_date"]; !ok {
-					foodItem["expiry_date"] = time.Now().AddDate(0, 0, geminiResponse.EstimatedAge).Format("2006-01-02")
-				}
-			} else {
-				// Set default values if Gemini fails
-				foodItem["estimated_age"] = 7 // Default shelf life 7 days
-				foodItem["expiry_date"] = time.Now().AddDate(0, 0, 7).Format("2006-01-02")
-				foodItem["confidence"] = 0.5
-			}
-
-			enhancedItems = append(enhancedItems, foodItem)
-		}
-
-		// Save enhanced results
-		resultsJSON, _ := json.Marshal(enhancedItems)
-		receiptScan.Status = "Processed"
-		receiptScan.OcrResults = string(resultsJSON)
-
-		if err := s.foodRepository.UpdateReceiptScan(context.Background(), receiptScan); err != nil {
-			log.Printf("Error updating receipt scan: %v", err)
-			return
-		}
-	}()
 
 	return domain.UploadReceiptResponse{
-		ScanID:   scanID.String(),
-		ImageURL: imageURL,
-		Status:   "Pending",
+		ScanID: scanID.String(),
+		Status: "Processed",
+		Items:  items,
 	}, nil
+}
+
+func (s *foodService) processReceiptWithGemini(ctx context.Context, receiptImage *multipart.FileHeader) ([]map[string]interface{}, error) {
+	file, err := receiptImage.Open()
+	if err != nil {
+		return nil, fmt.Errorf("error opening file: %w", err)
+	}
+	defer file.Close()
+
+	fileData, err := io.ReadAll(file)
+	if err != nil {
+		return nil, fmt.Errorf("error reading file: %w", err)
+	}
+
+	base64Image := base64.StdEncoding.EncodeToString(fileData)
+
+	geminiAPIKey := utils.GetConfig("GEMINI_API_KEY")
+	if geminiAPIKey == "" {
+		return nil, errors.New("GEMINI_API_KEY not configured")
+	}
+
+	geminiModel := utils.GetConfig("GEMINI_MODEL")
+	if geminiModel == "" {
+		geminiModel = "gemini-pro-vision"
+	}
+
+	mimeType := receiptImage.Header.Get("Content-Type")
+	if mimeType == "" {
+		mimeType = "image/jpeg"
+
+		filename := receiptImage.Filename
+		ext := strings.ToLower(filepath.Ext(filename))
+		switch ext {
+		case ".png":
+			mimeType = "image/png"
+		case ".jpg", ".jpeg":
+			mimeType = "image/jpeg"
+		case ".webp":
+			mimeType = "image/webp"
+		}
+	}
+
+	geminiURL := fmt.Sprintf("https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s", geminiModel, geminiAPIKey)
+
+	requestBody := map[string]interface{}{
+		"contents": []map[string]interface{}{
+			{
+				"parts": []map[string]interface{}{
+					{
+						// Modify the prompt in the Gemini API request:
+						"text": "You are an expert in analyzing receipt images. This is a grocery or food receipt. Extract the food items and their details.\n\n" +
+							"Return your analysis as a valid, well-formed JSON array, where each object has these fields:\n" +
+							"- name: the food item name (string)\n" +
+							"- price: the price shown on receipt (string)\n" +
+							"- estimated_age: typical shelf life in days (number)\n" +
+							"- expiry_date: calculated expiry date based on today (YYYY-MM-DD format)\n" +
+							"- unit_measure: the most likely unit (string - e.g., 'kg', 'pcs')\n" +
+							"- is_packaged: whether it's packaged (boolean)\n" +
+							"- category: food category (string)\n" +
+							"- confidence: your confidence (number between 0-1)\n\n" +
+							"IMPORTANT: Your response must be ONLY the valid JSON array - do not include any explanations, notes, or markdown formatting. Make sure your JSON is properly closed with brackets and is syntactically valid.",
+					},
+					{
+						"inline_data": map[string]interface{}{
+							"mime_type": mimeType,
+							"data":      base64Image,
+						},
+					},
+				},
+			},
+		},
+		"generationConfig": map[string]interface{}{
+			"temperature":     0.1,
+			"topP":            0.8,
+			"topK":            40,
+			"maxOutputTokens": 1024,
+		},
+	}
+
+	requestJSON, err := json.Marshal(requestBody)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling request: %w", err)
+	}
+
+	httpClient := &http.Client{Timeout: 60 * time.Second} // Longer timeout for OCR
+	req, err := http.NewRequestWithContext(ctx, "POST", geminiURL, bytes.NewBuffer(requestJSON))
+	if err != nil {
+		return nil, fmt.Errorf("error creating request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("error calling Gemini API: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("Gemini API error: %s - %s", resp.Status, string(bodyBytes))
+	}
+
+	var geminiResp struct {
+		Candidates []struct {
+			Content struct {
+				Parts []struct {
+					Text string `json:"text"`
+				} `json:"parts"`
+			} `json:"content"`
+		} `json:"candidates"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&geminiResp); err != nil {
+		return nil, fmt.Errorf("error decoding Gemini response: %w", err)
+	}
+
+	if len(geminiResp.Candidates) == 0 || len(geminiResp.Candidates[0].Content.Parts) == 0 {
+		return nil, errors.New("no content in Gemini response")
+	}
+
+	responseText := geminiResp.Candidates[0].Content.Parts[0].Text
+
+	jsonPattern := regexp.MustCompile(`(?s)\[\s*\{.*\}\s*\]`)
+	matches := jsonPattern.FindString(responseText)
+	if matches != "" {
+		responseText = matches
+	}
+
+	responseText = strings.TrimSpace(responseText)
+	if strings.HasPrefix(responseText, "```json") {
+		responseText = strings.TrimPrefix(responseText, "```json")
+		responseText = strings.TrimSuffix(responseText, "```")
+	} else if strings.HasPrefix(responseText, "```") {
+		responseText = strings.TrimPrefix(responseText, "```")
+		responseText = strings.TrimSuffix(responseText, "```")
+	}
+	responseText = strings.TrimSpace(responseText)
+
+	if strings.HasPrefix(responseText, "[") && !strings.HasSuffix(responseText, "]") {
+		lastBraceIndex := strings.LastIndex(responseText, "}")
+		if lastBraceIndex > 0 {
+			responseText = responseText[:lastBraceIndex+1] + "\n]"
+		}
+	}
+
+	var items []map[string]interface{}
+	if err := json.Unmarshal([]byte(responseText), &items); err != nil {
+		items = []map[string]interface{}{}
+
+		objPattern := regexp.MustCompile(`\{[^{}]*\}`)
+		objMatches := objPattern.FindAllString(responseText, -1)
+
+		for _, objStr := range objMatches {
+			var item map[string]interface{}
+			if jsonErr := json.Unmarshal([]byte(objStr), &item); jsonErr == nil {
+				items = append(items, item)
+			}
+		}
+
+		if len(items) == 0 {
+			return nil, fmt.Errorf("failed to parse Gemini JSON response: %w, raw response: %s", err, responseText)
+		}
+	}
+
+	now := time.Now()
+	for i, item := range items {
+		if _, ok := item["name"]; !ok {
+			item["name"] = "Unknown Item"
+		}
+
+		if _, ok := item["estimated_age"]; !ok {
+			item["estimated_age"] = 7
+		}
+
+		if _, ok := item["expiry_date"]; !ok {
+			estimatedAge, ok := item["estimated_age"].(float64)
+			if !ok {
+				estimatedAge = 7
+			}
+
+			expiryDate := now.AddDate(0, 0, int(estimatedAge))
+			item["expiry_date"] = expiryDate.Format("2006-01-02")
+		}
+
+		if _, ok := item["unit_measure"]; !ok {
+			item["unit_measure"] = "pcs"
+		}
+
+		if _, ok := item["is_packaged"]; !ok {
+			item["is_packaged"] = true
+		}
+
+		if _, ok := item["confidence"]; !ok {
+			item["confidence"] = 0.7
+		}
+
+		if _, ok := item["quantity"]; !ok {
+			item["quantity"] = 1
+		}
+
+		items[i] = item
+	}
+
+	return items, nil
 }
 
 func (s *foodService) getFoodAgeEstimationFromGemini(ctx context.Context, foodName string) (domain.GeminiResponse, error) {
@@ -635,7 +664,6 @@ func (s *foodService) getFoodAgeEstimationFromGemini(ctx context.Context, foodNa
 
 	geminiURL := fmt.Sprintf("https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s", geminiModel, geminiAPIKey)
 
-	// Prepare the prompt for Gemini
 	prompt := fmt.Sprintf(
 		"Analyze the food item '%s' and respond ONLY with a valid JSON object containing exactly these fields: "+
 			"'foodType' (corrected/more descriptive name of the food), "+
@@ -705,7 +733,6 @@ func (s *foodService) getFoodAgeEstimationFromGemini(ctx context.Context, foodNa
 
 	responseText := geminiResp.Candidates[0].Content.Parts[0].Text
 
-	// Clean up the response text to get valid JSON
 	jsonPattern := regexp.MustCompile(`(?s)\{.*\}`)
 	matches := jsonPattern.FindString(responseText)
 	if matches != "" {
@@ -770,7 +797,6 @@ func (s *foodService) GetReceiptScanResult(ctx context.Context, scanID string, u
 	if scan.Status == "Processed" && scan.OcrResults != "" {
 		var items []map[string]interface{}
 		if err := json.Unmarshal([]byte(scan.OcrResults), &items); err != nil {
-			// If it doesn't unmarshal as an array, try as a single object
 			var singleItem map[string]interface{}
 			if err := json.Unmarshal([]byte(scan.OcrResults), &singleItem); err != nil {
 				result["items"] = []interface{}{}
@@ -814,15 +840,17 @@ func (s *foodService) SaveScannedItems(ctx context.Context, req domain.SaveScann
 		return domain.ErrParseUUID
 	}
 
-	// Process each item
 	for _, item := range req.Items {
+		// Parse expiry date from string
 		expiryDate, err := time.Parse("2006-01-02", item.ExpiryDate)
 		if err != nil {
 			return domain.ErrInvalidExpiryDate
 		}
 
+		// Determine food status based on expiry date
 		status := determineStatus(expiryDate)
 
+		// Create food item record
 		scanIDStr := scanUUID.String()
 		foodItem := &entities.FoodItem{
 			ID:            uuid.New(),
@@ -837,12 +865,12 @@ func (s *foodService) SaveScannedItems(ctx context.Context, req domain.SaveScann
 			ReceiptScanID: &scanIDStr,
 		}
 
+		// Save food item to database
 		if err := s.foodRepository.AddFoodItem(ctx, foodItem); err != nil {
 			return err
 		}
 	}
 
-	// Update scan status to completed
 	scan.Status = "Completed"
 	if err := s.foodRepository.UpdateReceiptScan(ctx, scan); err != nil {
 		return err

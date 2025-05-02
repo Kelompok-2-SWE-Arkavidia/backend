@@ -73,10 +73,11 @@ type (
 		ReceiptImage *multipart.FileHeader `json:"receipt_image" form:"receipt_image" validate:"required"`
 	}
 
+	// In domain/food_item.go
 	UploadReceiptResponse struct {
-		ScanID   string `json:"scan_id"`
-		ImageURL string `json:"image_url"`
-		Status   string `json:"status"`
+		ScanID string                   `json:"scan_id"`
+		Status string                   `json:"status"`
+		Items  []map[string]interface{} `json:"items"`
 	}
 
 	ScannedItemRequest struct {
@@ -87,6 +88,7 @@ type (
 		IsPackaged   bool    `json:"is_packaged"`
 		Price        string  `json:"price,omitempty"`
 		EstimatedAge int     `json:"estimated_age,omitempty"`
+		Category     string  `json:"category,omitempty"`
 		Confidence   float64 `json:"confidence,omitempty"`
 	}
 
@@ -154,6 +156,7 @@ type (
 		ExpiryDate   string  `json:"expiry_date,omitempty"`
 		UnitMeasure  string  `json:"unit_measure,omitempty"`
 		IsPackaged   bool    `json:"is_packaged,omitempty"`
+		Category     string  `json:"category,omitempty"`
 		Confidence   float64 `json:"confidence,omitempty"`
 	}
 )

@@ -166,7 +166,6 @@ func (h *foodHandler) UploadReceipt(c *fiber.Ctx) error {
 	userID := c.Locals("user_id").(string)
 	req := new(domain.UploadReceiptRequest)
 
-	// Get file
 	file, err := c.FormFile("receipt_image")
 	if err != nil {
 		return presenters.ErrorResponse(c, fiber.StatusBadRequest, domain.MessageFailedBodyRequest, err)
